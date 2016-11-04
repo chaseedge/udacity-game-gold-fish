@@ -4,6 +4,21 @@ from google.appengine.ext import ndb
 
 from forms.forms import GameForm, ScoreForm
 from models.deck import Deck
+from utils import get_by_urlsafe
+import random
+
+class Player(ndb.Model):
+    """Creates players for the game"""
+    game = ndb.KeyProperty(required=True, kind='Game')
+    user = ndb.KeyProperty(required=True, kind='User')
+    hand = ndb.StringProperty(repeated=True)
+    score = ndb.IntegerProperty(required=True, default=0)
+    turn = ndb.BooleanProperty(required=True, default=False)
+
+    @classmethod
+    def new_player(cls, game_key, user_key):
+        player = cls(game=game_key,
+                     user=user_key)
 
 
 class Game(ndb.Model):
@@ -21,9 +36,8 @@ class Game(ndb.Model):
     @classmethod
     def new_game(cls, player1_key, player2_key):
         """Creates and returns a new game"""
-        game = Game(player1=player1_key,
-                    player2=player2_key,
-                    game_over=False)
+        game = cls(player1=player1_key,
+                    player2=player2_key)
 
         # create deck and deal
         deck = Deck()
@@ -36,13 +50,36 @@ class Game(ndb.Model):
         return game
 
     @classmethod
-    def make_guess(cls, player_name, guess):
-        pass
-        # player = check_player_exists(player_name)
-        # if player.key == cls.player1 and cls.player1_turn == True:
-        #     for x in cls.player2_hand:
-        #         if guess == x.split("|")[1]:
-        #             print "Yes %s" % guess
+    def make_guess(cls, game, player, guess):
+        """Checks players turn and processes players guess"""
+
+        # check if it's players turn
+        if player.key == game.player1 and game.player1_turn:
+            game.player1_turn = False
+            go_fish = True
+
+            # loop through player1 hand and make sure card is in hand
+            for x in game.player1_hand:
+                if guess.lower() == (x.split("|")[1]).lower():
+                    for y in game.player2_hand:
+                        if guess.lower() == (y.split("|")[1]).lower():
+                            message = "It is a match. Please go again."
+                            game.player1_score += 1
+                            game.player2_hand.remove(y)
+                            game.player1_hand.remove(x)
+                            game.player1_turn = True
+                            go_fish = False
+                            return message
+            if go_fish:
+                card = random.choice(game.deck)
+                game.deck.remove(card)
+                game.player1_hand.append(card)
+                message = "No match, Go fish. You drew {}".format(card)
+                game.put()
+                print game.player1_hand
+                return message
+
+        return "It's not your turn"
 
 
 

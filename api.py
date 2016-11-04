@@ -111,51 +111,50 @@ class GoFishApi(remote.Service):
                       http_method='PUT')
     def make_move(self, request):
         """Player Makes Guess. Returns results"""
-        message = "Go Fish"
-        name = request.player_name
-        player = check_player_exists(name)
         game = get_by_urlsafe(request.urlsafe_game_key, Game)
-        guess = request.player_guess.lower()
+        if game.game_over:
+            return game.to_form('Game already over!')
 
+        player = check_player_exists(request.player_name)
         if player.key not in [game.player1, game.player2]:
-            message = "Player is not in this game"
+            raise endpoints.NotFoundException('Player is not in this game')
+
+        message = "Go Fish"
+        guess = request.player_guess.lower()
 
         # see check if user entered Jacks instead of Jack
         if guess[-1] == "s":
             guess = guess[:-1]
 
-        print game.player1
-        print player.key
-        print game.player1_turn
+        message = game.make_guess(game,player,guess)
+        # # check if it's players turn
+        # if player.key == game.player1 and game.player1_turn:
+        #     game.player1_turn = False
+        #     go_fish = True
+        #
+        #     # loop through player1 hand and make sure card is in hand
+        #     for x in game.player1_hand:
+        #         if guess.lower() == (x.split("|")[1]).lower():
+        #             for y in game.player2_hand:
+        #                 if guess.lower() == (y.split("|")[1]).lower():
+        #                     message = "It is a match. Please go again."
+        #                     game.player1_score += 1
+        #                     game.player2_hand.remove(y)
+        #                     game.player1_hand.remove(x)
+        #                     game.player1_turn = True
+        #                     go_fish = False
+        #                     break
+        #     if go_fish:
+        #         card = random.choice(game.deck)
+        #         game.deck.remove(card)
+        #         print card
+        #         game.player1_hand.append(card)
 
-        # check if it's player1s turn
-        if player.key == game.player1 and game.player1_turn:
-            game.player1_turn = True
-            go_fish = True
-
-            # loop through player1 hand and make sure card is in hand
-            for x in game.player1_hand:
-                if guess.lower() == (x.split("|")[1]).lower():
-                    for y in game.player2_hand:
-                        if guess.lower() == (y.split("|")[1]).lower():
-                            message = "It is a match. Please go again."
-                            game.player1_score += 1
-                            game.player2_hand.remove(y)
-                            game.player1_hand.remove(x)
-                            game.player1_turn = True
-                            go_fish = False
-                            break
-            if go_fish:
-                card = random.choice(game.deck)
-                game.deck.remove(card)
-                print card
-                game.player1_hand.append(card)
-
-        print len(game.deck)
-        print game.player1_hand
-        print game.player2_hand
-        print game.player1_score
-        game.put()
+        # print len(game.deck)
+        # print game.player1_hand
+        # print game.player2_hand
+        # print game.player1_score
+        # game.put()
 
         return StringMessage(message=message)
 
