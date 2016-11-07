@@ -4,82 +4,109 @@ from google.appengine.ext import ndb
 
 from forms.forms import GameForm, ScoreForm
 from models.deck import Deck
-from utils import get_by_urlsafe
+
 import random
 
 class Player(ndb.Model):
     """Creates players for the game"""
-    game = ndb.KeyProperty(required=True, kind='Game')
     user = ndb.KeyProperty(required=True, kind='User')
+    name = ndb.StringProperty(required=True)
     hand = ndb.StringProperty(repeated=True)
     score = ndb.IntegerProperty(required=True, default=0)
-    turn = ndb.BooleanProperty(required=True, default=False)
+    # turn = ndb.BooleanProperty(required=True, default=False)
 
-    @classmethod
-    def new_player(cls, game_key, user_key):
-        player = cls(game=game_key,
-                     user=user_key)
+    def check_pairs(self):
+        value_list = [x.split("|")[1].lower() for x in self.hand]
+        for card in self.hand:
+            print card[1]
+            # if card[1] in value_list[i:]:
+            #     print card
 
+
+        print self.hand
 
 class Game(ndb.Model):
     """Game object"""
-    player1 = ndb.KeyProperty(required=True, kind='User')
-    player1_hand = ndb.StringProperty(repeated=True)
-    player1_score = ndb.IntegerProperty(required=True, default=0)
-    player1_turn = ndb.BooleanProperty(required=True, default=True)
-    player2 = ndb.KeyProperty(required=True, kind='User')
-    player2_hand = ndb.StringProperty(repeated=True)
-    player2_score = ndb.IntegerProperty(required=True, default=0)
+    player_names = ndb.StringProperty(repeated=True)
+    turn = ndb.StringProperty(required=True, default="")
     deck = ndb.StringProperty(repeated=True)
     game_over = ndb.BooleanProperty(required=True, default=False)
+    winner = ndb.StringProperty()
 
     @classmethod
-    def new_game(cls, player1_key, player2_key):
+    def new_game(cls, user1, user2):
         """Creates and returns a new game"""
-        game = cls(player1=player1_key,
-                    player2=player2_key)
+        game = cls()
+        game_key = game.put()
+
+
+        player1 = Player(parent=game_key,
+                         user=user1.key,
+                         name=user1.name)
+
+        player2 = Player(parent=game_key,
+                         user=user2.key,
+                         name=user2.name)
 
         # create deck and deal
         deck = Deck()
         deck.create_deck()
-        game.player1_hand = deck.deal_hand()
-        game.player2_hand = deck.deal_hand()
+        player1.hand = deck.deal_hand()
+        player2.hand = deck.deal_hand()
+        player1.put()
+        player2.put()
+
+        game.player_names.append(player1.name)
+        game.player_names.append(player2.name)
+
         game.deck = deck.deck
+        game.turn = player1.name
         game.put()
 
         return game
 
     @classmethod
-    def make_guess(cls, game, player, guess):
+    def make_guess(cls, game, name, guess):
         """Checks players turn and processes players guess"""
+        if name.lower() != game.turn.lower():
+            return "Sorry, it is not your turn. {} please make a move".format(game.turn)
 
-        # check if it's players turn
-        if player.key == game.player1 and game.player1_turn:
-            game.player1_turn = False
+        else:
+            from utils import get_player_by_game
+            player_index = game.player_names.index(name)
+            if player_index == 0:
+                player1 = get_player_by_game(name, game)
+                player2 = get_player_by_game(game.player_names[1], game)
+            else:
+                player1 = get_player_by_game(name, game)
+                player2 = get_player_by_game(game.player_names[0], game)
+
+            print player1.name
+            print player2.name
             go_fish = True
+            guess = guess.lower()
 
             # loop through player1 hand and make sure card is in hand
-            for x in game.player1_hand:
-                if guess.lower() == (x.split("|")[1]).lower():
-                    for y in game.player2_hand:
-                        if guess.lower() == (y.split("|")[1]).lower():
-                            message = "It is a match. Please go again."
-                            game.player1_score += 1
-                            game.player2_hand.remove(y)
-                            game.player1_hand.remove(x)
-                            game.player1_turn = True
+            for x in player1.hand:
+                value = x.split("|")[1].lower()
+                if guess == value:
+                    for y in player2.hand:
+                        value = y.split("|")[1].lower()
+                        if guess == value:
+                            player1.score += 1
+                            player2.hand.remove(y)
+                            player1.hand.remove(x)
                             go_fish = False
-                            return message
+                            return "It is a match. Please go again."
             if go_fish:
                 card = random.choice(game.deck)
                 game.deck.remove(card)
-                game.player1_hand.append(card)
-                message = "No match, Go fish. You drew {}".format(card)
+                player1.hand.append(card)
+                player1.put()
+                game.turn = player2.name
                 game.put()
-                print game.player1_hand
-                return message
+                return "No match, Go fish. You drew {}. Your hand is {}".format(card, player1.hand)
 
-        return "It's not your turn"
 
 
 
@@ -87,12 +114,9 @@ class Game(ndb.Model):
         """Returns a GameForm representation of the Game"""
         form = GameForm()
         form.urlsafe_key = self.key.urlsafe()
-        form.player1 = self.player1.get().name
-        form.player2 = self.player2.get().name
+        form.player_names = self.player_names
         form.game_over = self.game_over
-        form.player1_hand = self.player1_hand
-        form.player2_hand = self.player2_hand
-        form.player1_turn = True
+        form.turn = self.turn
         form.message = message
         return form
 
@@ -106,7 +130,11 @@ class Game(ndb.Model):
                       guesses=self.attempts_allowed - self.attempts_remaining)
         score.put()
 
-
+# urlsafe_key = messages.StringField(1, required=True)
+#     game_over = messages.BooleanField(2, required=True)
+#     players = messages.StringField(3, repeated=True)
+#     message = messages.StringField(4, required=True)
+#     turn = messages.StringField(5, required=True)
 
 class Score(ndb.Model):
     """Score object"""

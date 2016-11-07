@@ -2,7 +2,9 @@
 
 import logging
 from google.appengine.ext import ndb
+from models.game import Player, Game
 from models.user import User
+
 import endpoints
 
 def get_by_urlsafe(urlsafe, model):
@@ -36,35 +38,39 @@ def get_by_urlsafe(urlsafe, model):
     return entity
 
 
+def check_user_exists(name):
+    """Checks to see if User exits and returns user"""
+    user = User.query(User.name == name).get()
+    if not user:
+        raise endpoints.NotFoundException(
+            'User {} does not exist!'.format(name))
+    else:
+        return user
 
-def check_player_exists(name):
-    player = User.query(User.name == name).get()
+
+def get_player_by_game(name, game):
+    """Search for player given name and game"""
+
+    # check to make sure User exists
+    if not check_user_exists(name):
+        raise endpoints.NotFoundException(
+            '{} does not exist!'.format(name))
+
+    #check to see if Player is in this game
+    player = Player.query(ancestor=game.key).filter(Player.name == name).get()
     if not player:
         raise endpoints.NotFoundException(
-            'Player {} does not exist!'.format(name))
+            '{} does not exist!'.format(name))
     else:
         return player
 
 
-def check_game_player(name, game_url, model):
-    game = get_by_urlsafe(game_url, model)
-    player = User.query(User.name == name).get()
+def check_game_exists(player1, player2):
+    """Checks to see if the two players already have a game"""
+    game = Game.query(ndb.AND(Game.player_names == player1,
+                              Game.player_names == player2,
+                              Game.game_over == False)).get()
+    return game
 
-    if not player:
-        raise endpoints.NotFoundException(
-            '{} does not exist!'.format(name))
-
-    elif player.key == game.player1:
-        print "player1"
-        return game.player1_hand
-
-    elif player.key == game.player2:
-        print "player2"
-        return game.player2_hand
-
-    else:
-        raise endpoints.NotFoundException(
-            '{} is not in this game'.format(name))
-        return False
 
 

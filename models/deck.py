@@ -27,7 +27,7 @@ class Deck(object):
 
     def deal_hand(self):
         hand = []
-        for i in xrange(5):
+        for i in xrange(7):
             card = random.choice(self.deck)
             self.deck.remove(card)
             hand.append(card)

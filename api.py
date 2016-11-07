@@ -12,22 +12,28 @@ from protorpc import remote, messages
 
 from forms.forms import StringMessage, NewGameForm, GameForm, MakeMoveForm,\
     ScoreForms
-from models.game import Game, Score
+from models.game import Game, Score, Player
 from models.user import User
-from utils import get_by_urlsafe, check_player_exists, check_game_player
+from utils import get_by_urlsafe, check_user_exists, get_player_by_game, check_game_exists
 
-NEW_GAME_REQUEST = endpoints.ResourceContainer(NewGameForm)
+NEW_GAME_REQUEST = endpoints.ResourceContainer(
+    NewGameForm)
+
 GET_GAME_REQUEST = endpoints.ResourceContainer(
         urlsafe_game_key=messages.StringField(1),)
+
+HAND_REQUEST = endpoints.ResourceContainer(
+    urlsafe_game_key=messages.StringField(1, required=True),
+    player_name=messages.StringField(2, required=True))
+
+USER_REQUEST = endpoints.ResourceContainer(
+    user_name=messages.StringField(1, required=True),
+    email=messages.StringField(2))
+
 MAKE_MOVE_REQUEST = endpoints.ResourceContainer(
-    MakeMoveForm,
-    urlsafe_game_key=messages.StringField(1),)
-
-HAND_REQUEST = endpoints.ResourceContainer(urlsafe_game_key=messages.StringField(1, required=True),
-                                           player_name=messages.StringField(2, required=True))
-
-USER_REQUEST = endpoints.ResourceContainer(user_name=messages.StringField(1, required=True),
-                                           email=messages.StringField(2))
+    urlsafe_game_key=messages.StringField(1, required=True),
+    player_name=messages.StringField(2, required=True),
+    guess=messages.StringField(3, required=True))
 
 MEMCACHE_MOVES_REMAINING = 'MOVES_REMAINING'
 
@@ -56,11 +62,18 @@ class GoFishApi(remote.Service):
                       http_method='POST')
     def new_game(self, request):
         """Creates new game"""
-        player1 = check_player_exists(request.player1)
-        player2 = check_player_exists(request.player2)
+
+        # make sure players exists
+        player1 = check_user_exists(request.player1)
+        player2 = check_user_exists(request.player2)
+
+        # make sure players don't have an active game already
+        game = check_game_exists(player1.name, player2.name)
+        if game:
+            return game.to_form('Game already exists')
 
         try:
-            game = Game.new_game(player1.key, player2.key)
+            game = Game.new_game(player1, player2)
         except ValueError:
             raise endpoints.BadRequestException('Two valid users are needed')
 
@@ -72,24 +85,6 @@ class GoFishApi(remote.Service):
         return game.to_form('Please make guess')
 
 
-    @endpoints.method(request_message=HAND_REQUEST,
-                      response_message=StringMessage,
-                      path='game/{urlsafe_game_key}/{player_name}/hand',
-                      name='get_player_hand',
-                      http_method='GET')
-    def get_player_hand(self, request):
-        """Get players hand"""
-        game_url = request.urlsafe_game_key
-        player_name = request.player_name
-        player_hand = check_game_player(player_name, game_url, Game)
-
-        if player_hand:
-            return StringMessage(message='{} has {}'.format(player_name,
-                player_hand))
-        else:
-            return StringMessage(message="Something went wrong")
-
-
     @endpoints.method(request_message=GET_GAME_REQUEST,
                       response_message=GameForm,
                       path='game/{urlsafe_game_key}',
@@ -98,10 +93,29 @@ class GoFishApi(remote.Service):
     def get_game(self, request):
         """Return the current game state."""
         game = get_by_urlsafe(request.urlsafe_game_key, Game)
+
         if game:
-            return game.to_form('Time to make a move!')
+            return game.to_form('Your move {}'.format(game.turn))
         else:
             raise endpoints.NotFoundException('Game not found!')
+
+
+    @endpoints.method(request_message=HAND_REQUEST,
+                      response_message=StringMessage,
+                      path='game/{urlsafe_game_key}/{player_name}/hand',
+                      name='get_player_hand',
+                      http_method='GET')
+    def get_player_hand(self, request):
+        """Get players hand"""
+        game = get_by_urlsafe(request.urlsafe_game_key, Game)
+        player = get_player_by_game(request.player_name, game)
+        player.check_pairs()
+
+        if player:
+            return StringMessage(message='{} has {}'.format(player.name,
+                player.hand))
+        else:
+            raise endpoints.NotFoundException('Player not found!')
 
 
     @endpoints.method(request_message=MAKE_MOVE_REQUEST,
@@ -113,48 +127,19 @@ class GoFishApi(remote.Service):
         """Player Makes Guess. Returns results"""
         game = get_by_urlsafe(request.urlsafe_game_key, Game)
         if game.game_over:
-            return game.to_form('Game already over!')
+            raise endpoints.NotFoundException('Game already over')
 
-        player = check_player_exists(request.player_name)
-        if player.key not in [game.player1, game.player2]:
+        player = get_player_by_game(request.player_name, game)
+        if not player:
             raise endpoints.NotFoundException('Player is not in this game')
 
-        message = "Go Fish"
-        guess = request.player_guess.lower()
+        guess = request.guess.lower()
 
         # see check if user entered Jacks instead of Jack
         if guess[-1] == "s":
             guess = guess[:-1]
 
-        message = game.make_guess(game,player,guess)
-        # # check if it's players turn
-        # if player.key == game.player1 and game.player1_turn:
-        #     game.player1_turn = False
-        #     go_fish = True
-        #
-        #     # loop through player1 hand and make sure card is in hand
-        #     for x in game.player1_hand:
-        #         if guess.lower() == (x.split("|")[1]).lower():
-        #             for y in game.player2_hand:
-        #                 if guess.lower() == (y.split("|")[1]).lower():
-        #                     message = "It is a match. Please go again."
-        #                     game.player1_score += 1
-        #                     game.player2_hand.remove(y)
-        #                     game.player1_hand.remove(x)
-        #                     game.player1_turn = True
-        #                     go_fish = False
-        #                     break
-        #     if go_fish:
-        #         card = random.choice(game.deck)
-        #         game.deck.remove(card)
-        #         print card
-        #         game.player1_hand.append(card)
-
-        # print len(game.deck)
-        # print game.player1_hand
-        # print game.player2_hand
-        # print game.player1_score
-        # game.put()
+        message = game.make_guess(game,player.name,guess)
 
         return StringMessage(message=message)
 
