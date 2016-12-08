@@ -2,7 +2,8 @@
 
 import logging
 from google.appengine.ext import ndb
-from models.game import Player, Game
+from models.game import Game
+from models.player import Player
 from models.user import User
 
 import endpoints
@@ -40,7 +41,7 @@ def get_by_urlsafe(urlsafe, model):
 
 def check_user_exists(name):
     """Checks to see if User exits and returns user"""
-    user = User.query(User.name == name).get()
+    user = User.query(User.name == name.title()).get()
     if not user:
         raise endpoints.NotFoundException(
             'User {} does not exist!'.format(name))
@@ -57,7 +58,7 @@ def get_player_by_game(name, game):
             '{} does not exist!'.format(name))
 
     #check to see if Player is in this game
-    player = Player.query(ancestor=game.key).filter(Player.name == name).get()
+    player = Player.query(ancestor=game.key).filter(Player.name == name.title()).get()
     if not player:
         raise endpoints.NotFoundException(
             '{} does not exist!'.format(name))
@@ -71,6 +72,3 @@ def check_game_exists(player1, player2):
                               Game.player_names == player2,
                               Game.game_over == False)).get()
     return game
-
-
-

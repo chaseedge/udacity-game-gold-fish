@@ -4,4 +4,5 @@ class User(ndb.Model):
     """User profile"""
     name = ndb.StringProperty(required=True)
     email = ndb.StringProperty()
-    record = ndb.IntegerProperty(default=0)
+    wins = ndb.IntegerProperty(default=0)
+    losses = ndb.IntegerProperty(default=0)

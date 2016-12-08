@@ -5,22 +5,24 @@ move game logic to another file. Ideally the API will be simple, concerned
 primarily with communication to/from the API's users."""
 
 import endpoints
-import random
 from google.appengine.api import memcache
 from google.appengine.api import taskqueue
-from protorpc import remote, messages
+from protorpc import remote, messages, message_types
 
-from forms.forms import StringMessage, NewGameForm, GameForm, MakeMoveForm,\
-    ScoreForms
-from models.game import Game, Score, Player
+from forms.forms import StringMessage, GameForm, AllGames, AllUsersForm
+from models.game import Game
+from models.player import Player
 from models.user import User
 from utils import get_by_urlsafe, check_user_exists, get_player_by_game, check_game_exists
 
 NEW_GAME_REQUEST = endpoints.ResourceContainer(
-    NewGameForm)
+    player1 = messages.StringField(1, required=True),
+    player2 = messages.StringField(2, required=True),
+    cards_dealt = messages.IntegerField(3, required=False),
+    matches_to_win = messages.IntegerField(4, required=False))
 
 GET_GAME_REQUEST = endpoints.ResourceContainer(
-        urlsafe_game_key=messages.StringField(1),)
+    urlsafe_game_key=messages.StringField(1))
 
 HAND_REQUEST = endpoints.ResourceContainer(
     urlsafe_game_key=messages.StringField(1, required=True),
@@ -47,13 +49,22 @@ class GoFishApi(remote.Service):
                       http_method='POST')
     def create_user(self, request):
         """Create a User. Requires a unique username"""
-        if User.query(User.name == request.user_name).get():
+        user_name = request.user_name.title()
+        if User.query(User.name == user_name).get():
             raise endpoints.ConflictException(
-                    'A User with that name already exists!')
-        user = User(name=request.user_name.title(), email=request.email)
+                'A User with that name already exists!')
+        user = User(name=user_name, email=request.email)
         user.put()
         return StringMessage(message='User {} created!'.format(
-                request.user_name))
+                            request.user_name))
+
+    @endpoints.method(response_message=AllUsersForm,
+                      path='user/all',
+                      name='get_all_users',
+                      http_method='GET')
+    def get_all_users(self, request):
+        """Returns list of all users"""
+        return AllUsersForm(users=[user.name for user in User.query()])
 
     @endpoints.method(request_message=NEW_GAME_REQUEST,
                       response_message=GameForm,
@@ -67,13 +78,23 @@ class GoFishApi(remote.Service):
         player1 = check_user_exists(request.player1)
         player2 = check_user_exists(request.player2)
 
+        # set to low number for testing purposes. makes game go faster
+        matches = request.matches_to_win
+        if not matches:
+            matches = 6
+
+        # number of cards in hand to be dealt
+        cards = request.cards_dealt
+        if not cards:
+            cards = 5
+
         # make sure players don't have an active game already
         game = check_game_exists(player1.name, player2.name)
         if game:
             return game.to_form('Game already exists')
 
         try:
-            game = Game.new_game(player1, player2)
+            game = Game.new_game(player1, player2, matches, cards)
         except ValueError:
             raise endpoints.BadRequestException('Two valid users are needed')
 
@@ -82,6 +103,8 @@ class GoFishApi(remote.Service):
         # This operation is not needed to complete the creation of a new game
         # so it is performed out of sequence.
         # taskqueue.add(url='/tasks/cache_average_attempts')
+        if game.game_over:
+            return game.to_form("Game over, {} is the winner".format(game.winner))
         return game.to_form('Please make guess')
 
 
@@ -94,10 +117,26 @@ class GoFishApi(remote.Service):
         """Return the current game state."""
         game = get_by_urlsafe(request.urlsafe_game_key, Game)
 
+        if game.game_over:
+            return game.to_form("Game over, {} is the winner".format(game.winner))
+
         if game:
             return game.to_form('Your move {}'.format(game.turn))
+
         else:
             raise endpoints.NotFoundException('Game not found!')
+
+    @endpoints.method(response_message=AllGames,
+                      path='games',
+                      name='get_all_games',
+                      http_method='GET')
+    def get_all_games(self, request):
+        """Returns all games"""
+        games = Game.query()
+        if games.count() >= 1:
+            return AllGames(games=[game.to_form("n/a") for game in games])
+        else:
+            raise endpoints.NotFoundException('No games found')
 
 
     @endpoints.method(request_message=HAND_REQUEST,
@@ -108,8 +147,11 @@ class GoFishApi(remote.Service):
     def get_player_hand(self, request):
         """Get players hand"""
         game = get_by_urlsafe(request.urlsafe_game_key, Game)
+
+        if game.game_over:
+            return StringMessage(message='Game over, {} is the winner'.format(game.winner))
+
         player = get_player_by_game(request.player_name, game)
-        player.check_pairs()
 
         if player:
             return StringMessage(message='{} has {}'.format(player.name,
@@ -133,7 +175,7 @@ class GoFishApi(remote.Service):
         if not player:
             raise endpoints.NotFoundException('Player is not in this game')
 
-        guess = request.guess.lower()
+        guess = request.guess.title()
 
         # see check if user entered Jacks instead of Jack
         if guess[-1] == "s":
@@ -143,49 +185,29 @@ class GoFishApi(remote.Service):
 
         return StringMessage(message=message)
 
-        # if game.game_over:
-        #     return game.to_form('Game already over!')
-        # else:
-        #     return game.to_form('Good work')
 
-        # game.attempts_remaining -= 1
-        # if request.guess == game.target:
-        #     game.end_game(True)
-        #     return game.to_form('You win!')
-        #
-        # if request.guess < game.target:
-        #     msg = 'Too low!'
-        # else:
-        #     msg = 'Too high!'
-        #
-        # if game.attempts_remaining < 1:
-        #     game.end_game(False)
-        #     return game.to_form(msg + ' Game over!')
-        # else:
-        #     game.put()
-        #     return game.to_form(msg)
+    # @endpoints.method(response_message=ScoreForms,
+    #                   path='scores',
+    #                   name='get_scores',
+    #                   http_method='GET')
+    # def get_scores(self, request):
+    #     """Return all scores"""
+    #     return ScoreForms(items=[score.to_form() for score in Score.query()])
 
-    @endpoints.method(response_message=ScoreForms,
-                      path='scores',
-                      name='get_scores',
-                      http_method='GET')
-    def get_scores(self, request):
-        """Return all scores"""
-        return ScoreForms(items=[score.to_form() for score in Score.query()])
+    # @endpoints.method(request_message=USER_REQUEST,
+    #                   response_message=ScoreForms,
+    #                   path='scores/user/{user_name}',
+    #                   name='get_user_scores',
+    #                   http_method='GET')
+    # def get_user_scores(self, request):
+    #     """Returns all of an individual User's scores"""
+    #     user = check_user_exists(request.user_name)
+    #     if not user:
+    #         raise endpoints.NotFoundException(
+    #                 'A User with that name does not exist!')
 
-    @endpoints.method(request_message=USER_REQUEST,
-                      response_message=ScoreForms,
-                      path='scores/user/{user_name}',
-                      name='get_user_scores',
-                      http_method='GET')
-    def get_user_scores(self, request):
-        """Returns all of an individual User's scores"""
-        user = User.query(User.name == request.user_name).get()
-        if not user:
-            raise endpoints.NotFoundException(
-                    'A User with that name does not exist!')
-        scores = Score.query(Score.user == user.key)
-        return ScoreForms(items=[score.to_form() for score in scores])
+
+        # return ScoreForms(items=[score.to_form() for score in scores])
 
     @endpoints.method(response_message=StringMessage,
                       path='games/average_attempts',

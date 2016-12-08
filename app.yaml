@@ -1,4 +1,4 @@
-application: p4-refresh
+application: udacity-game-148120
 version: 1
 runtime: python27
 api_version: 1

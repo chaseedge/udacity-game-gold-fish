@@ -22,22 +22,19 @@ class Deck(object):
             for r in xrange(2,15):
                 if r > 10:
                     r = faces[r]
-                card = suits[s] +"|"+ str(r)
+                card = {
+                    'suit': suits[s],
+                    'rank': str(r)
+                }
                 self.deck.append(card)
 
-    def deal_hand(self):
+    def deal_hand(self, cards_to_deal):
         hand = []
-        for i in xrange(7):
+        for i in xrange(cards_to_deal):
             card = random.choice(self.deck)
             self.deck.remove(card)
             hand.append(card)
-
         return hand
 
 
-
-class Card(object):
-    def __init__(self, suit, rank):
-        self.suit = suit
-        self.rank = rank
 
