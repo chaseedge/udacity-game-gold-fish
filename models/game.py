@@ -6,13 +6,14 @@ from forms.forms import GameForm
 from models.deck import Deck
 from models.player import Player
 
-
+import json
 import random
 
 class Game(ndb.Model):
     """Game object"""
     player_names = ndb.StringProperty(repeated=True)
     turn = ndb.StringProperty(required=False, default="")
+    started_on = ndb.DateTimeProperty(required=True, default=datetime.now())
     deck = ndb.JsonProperty()
     game_over = ndb.BooleanProperty(required=True, default=False)
     matches_to_win = ndb.IntegerProperty(required=True)
@@ -141,19 +142,31 @@ class Game(ndb.Model):
 
     def to_form(self, message):
         """Returns a GameForm representation of the Game"""
+        from utils import get_player_by_game
+
+        # get players
+        player1 = get_player_by_game(self.player_names[0], self)
+        player2 = get_player_by_game(self.player_names[1], self)
+
         form = GameForm()
+        form.started_on = self.started_on
         form.urlsafe_key = self.key.urlsafe()
-        form.player_names = self.player_names
+        form.player1 = player1.name
+        form.player1_hand = str(player1.hand)
+        form.player1_matches = player1.num_matches
+        form.player2 = player2.name
+        form.player2_hand = str(player2.hand)
+        form.player2_matches = player2.num_matches
         form.game_over = self.game_over
 
         if not self.game_over:
             form.turn = self.turn
         else:
             form.winner = self.winner
-            form.loser = self.loser
 
         form.message = message
         return form
+
 
     def end_game(self, winner, loser):
         """Ends the game - if won is True, the player won. - if won is False,
@@ -164,6 +177,25 @@ class Game(ndb.Model):
         self.loser = loser.name
         self.put()
 
+    # def to_score(self):
+    #     from utils import get_player_by_game
+    #
+    #     player1 = get_player_by_game(self.urlsafe_game_key, self.player_names[0])
+    #     player2 = get_player_by_game(self.urlsafe_game_key, self.player_names[1])
+    #
+    #     score_form = GameScoreForm()
+    #     score_form.game_url = self.urlsafe_game_key
+    #     score_form.player1 = player1.name
+    #     score_form.player1_matches = player1.num_matches
+    #     score_form.player2 = player2.name
+    #     score_form.player2_matches = player2.num_matches
+    #     score_form.turn = self.turn
+    #     score_form.winner = self.winner
+    #     score_form.game_over = self.game_over
+    #
+    #     return score_form
+
+
         # return "Game over, {} is the winner".format(winner.name)
         # Add the game to the score 'board'
         # score = Score(player1=winner.key, date=datetime.now(), won=won, score=player.score, game=self.key)
@@ -172,15 +204,18 @@ class Game(ndb.Model):
 
 # class GameScore(ndb.Model):
 #     """Score object"""
-#     player1 = ndb.KeyProperty(required=False, kind='User')
-#     player1_matches =
-#     player2 = ndb.KeyProperty(required=False, kind='User')
-#     winner = ndb.StringProperty(required=False)
-#     score = ndb.IntegerProperty(required=True)
-#     date = ndb.DateTimeProperty(required=True)
-#     game_over = ndb.BooleanProperty(required=True)
 #     game = ndb.KeyProperty(required=True, kind='Game')
-#
-#     def to_form(self):
-#         return ScoreForm(user_name=self.user.get().name, won=self.won,
-#                          date=str(self.date), game=self.game)
+#     player1 = ndb.KeyProperty(required=True, kind='Player')
+#     # player1_matches = ndb.IntegerProperty(required=True, default=0)
+#     player2 = ndb.KeyProperty(required=True, kind='Player')
+#     # player2_matches = ndb.IntegerProperty(required=True, default=0)
+#     winner = ndb.StringProperty(required=False)
+#     date = ndb.DateTimeProperty(required=True, default=datetime.now())
+#     game_over = ndb.BooleanProperty(required=True)
+
+
+    # def to_form(self,game):
+    #     return GameScoreForm(game_url=game.urlsafe_game_key,
+    #                          started_on=
+    #                          self.user.get().name, won=self.won,
+    #                      date=str(self.date), game=self.game)

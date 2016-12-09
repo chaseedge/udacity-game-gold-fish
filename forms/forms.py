@@ -1,33 +1,35 @@
-from protorpc import messages
+from protorpc import messages, message_types
 
 class GameForm(messages.Message):
     """GameForm for outbound game state information"""
     urlsafe_key = messages.StringField(1, required=True)
     game_over = messages.BooleanField(2, required=True)
-    player_names = messages.StringField(3, repeated=True)
-    message = messages.StringField(4, required=True)
-    turn = messages.StringField(5, required=False)
-    winner = messages.StringField(6, required=False)
-    loser = messages.StringField(7, required=False)
+    player1 = messages.StringField(3, required=True)
+    player1_hand = messages.StringField(4,required=False)
+    player1_matches = messages.IntegerField(5, required=False)
+    player2 = messages.StringField(6, required=True)
+    player2_hand = messages.StringField(7, required=False)
+    player2_matches = messages.IntegerField(8, required=False)
+    message = messages.StringField(9, required=True)
+    turn = messages.StringField(10, required=False)
+    winner = messages.StringField(11, required=False)
+    started_on = message_types.DateTimeField(12, required=True)
 
 class AllGames(messages.Message):
     """Returns all games"""
     games = messages.MessageField(GameForm, 1, repeated=True)
 
-# class GameScore(messages.Message):
-#     """ScoreForm for outbound Score information"""
-#     datetime = messages.StringField(1, required=True)
-#     player1 = messages.StringField(2, required=True)
-#     player1_matches = messages.IntegerField(3, required=True)
-#     player2 = messages.StringField(4, required=True)
-#     player2_matches = messages.IntegerField(5, required=True)
-#     game_over = messages.BooleanField(6, required=True)
-#     winner = messages.BooleanField(7, required=True)
-#
-#
-# class ScoreForms(messages.Message):
-#     """Return multiple ScoreForms"""
-#     items = messages.MessageField(ScoreForm, 1, repeated=True)
+class GameScoreForm(messages.Message):
+    """ScoreForm for a game"""
+    game_url = messages.StringField(1, required=True)
+    started_on = message_types.DateTimeField(2, required=True)
+    player1 = messages.StringField(3, required=True)
+    player1_matches = messages.IntegerField(4,required=False)
+    player2 = messages.StringField(5, required=True)
+    player2_matches = messages.IntegerField(6, required=False)
+    turn = messages.IntegerField(7, required=False)
+    winner = messages.StringField(8, required=False)
+    game_over = messages.BooleanField(9, required=True)
 
 class StringMessage(messages.Message):
     """StringMessage-- outbound (single) string message"""
@@ -36,3 +38,14 @@ class StringMessage(messages.Message):
 class AllUsersForm(messages.Message):
     """AllUsersForm returns list of all users"""
     users = messages.StringField(1, repeated=True)
+
+class ScoreForm(messages.Message):
+    """ScoreForm each entry"""
+    player = messages.StringField(1, required=True)
+    games = messages.IntegerField(2, required=True)
+    wins = messages.IntegerField(3, required=True)
+    loses = messages.IntegerField(4, required=True)
+
+class ScoreBoard(messages.Message):
+    """ScoreBoard form"""
+    scores = messages.StringField(1, required=False)

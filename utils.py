@@ -42,6 +42,7 @@ def get_by_urlsafe(urlsafe, model):
 def check_user_exists(name):
     """Checks to see if User exits and returns user"""
     user = User.query(User.name == name.title()).get()
+
     if not user:
         raise endpoints.NotFoundException(
             'User {} does not exist!'.format(name))

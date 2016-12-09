@@ -9,7 +9,7 @@ from google.appengine.api import memcache
 from google.appengine.api import taskqueue
 from protorpc import remote, messages, message_types
 
-from forms.forms import StringMessage, GameForm, AllGames, AllUsersForm
+from forms.forms import StringMessage, GameForm, AllGames, AllUsersForm, ScoreBoard
 from models.game import Game
 from models.player import Player
 from models.user import User
@@ -37,7 +37,7 @@ MAKE_MOVE_REQUEST = endpoints.ResourceContainer(
     player_name=messages.StringField(2, required=True),
     guess=messages.StringField(3, required=True))
 
-MEMCACHE_MOVES_REMAINING = 'MOVES_REMAINING'
+MEMCACHE_SCOREBOARD = 'SCOREBOARD'
 
 @endpoints.api(name='go_fish', version='v1')
 class GoFishApi(remote.Service):
@@ -102,7 +102,8 @@ class GoFishApi(remote.Service):
         # Use a task queue to update the average attempts remaining.
         # This operation is not needed to complete the creation of a new game
         # so it is performed out of sequence.
-        # taskqueue.add(url='/tasks/cache_average_attempts')
+        taskqueue.add(url='/tasks/cache_scoreboard')
+
         if game.game_over:
             return game.to_form("Game over, {} is the winner".format(game.winner))
         return game.to_form('Please make guess')
@@ -133,6 +134,7 @@ class GoFishApi(remote.Service):
     def get_all_games(self, request):
         """Returns all games"""
         games = Game.query()
+
         if games.count() >= 1:
             return AllGames(games=[game.to_form("n/a") for game in games])
         else:
@@ -209,18 +211,34 @@ class GoFishApi(remote.Service):
 
         # return ScoreForms(items=[score.to_form() for score in scores])
 
-    @endpoints.method(response_message=StringMessage,
-                      path='games/average_attempts',
-                      name='get_average_attempts_remaining',
+    @endpoints.method(response_message=ScoreBoard,
+                      path='games/scoreboard',
+                      name='get_scores',
                       http_method='GET')
-    def get_average_attempts(self, request):
-        """Get the cached average moves remaining"""
-        return StringMessage(message=memcache.get(MEMCACHE_MOVES_REMAINING) or '')
+    def get_scores(self, request):
+        """Get the cached ScoreBoard"""
+        users = User.query()
+        return ScoreBoard(scores=memcache.get(MEMCACHE_SCOREBOARD) or '')
 
     @staticmethod
-    def _cache_average_attempts():
+    def _cache_scoreboard():
         """Populates memcache with the average moves remaining of Games"""
-        games = Game.query(Game.game_over == False).fetch()
+        user = User.query().get()
+        games = Game.query()
+        players = Player.query()
+
+        # user.games = players.filter(Player.name == user.name).count()
+        user.wins = games.filter(Game.winner == user.name).count()
+        user.loses = games.filter(Game.loser == user.name).count()
+
+        user.score = "{} {}-{}".format(user.name, user.wins, user.loses)
+        memcache.set(MEMCACHE_SCOREBOARD, str(user.score))
+        user.put()
+
+
+
+
+        # games = Game.query(Game.game_over == False).fetch()
         # if games:
         #     count = len(games)
         #     total_attempts_remaining = sum([game.attempts_remaining
