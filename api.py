@@ -9,7 +9,7 @@ from google.appengine.api import memcache
 from google.appengine.api import taskqueue
 from protorpc import remote, messages, message_types
 
-from forms.forms import StringMessage, GameForm, AllGames, AllUsersForm, ScoreBoard
+from forms import StringMessage, GameForm, AllGames, AllUsersForm, AllUserGames, ScoreBoard, CancelGame
 from models.game import Game
 from models.player import Player
 from models.user import User
@@ -21,8 +21,15 @@ NEW_GAME_REQUEST = endpoints.ResourceContainer(
     cards_dealt = messages.IntegerField(3, required=False),
     matches_to_win = messages.IntegerField(4, required=False))
 
+USER_GAMES_REQUEST = endpoints.ResourceContainer(
+    username = messages.StringField(1, required=True))
+
 GET_GAME_REQUEST = endpoints.ResourceContainer(
     urlsafe_game_key=messages.StringField(1))
+
+CANCEL_GAME_REQUEST = endpoints.ResourceContainer(
+    urlsafe_game_key=messages.StringField(1),
+    cancel=messages.BooleanField(2))
 
 HAND_REQUEST = endpoints.ResourceContainer(
     urlsafe_game_key=messages.StringField(1, required=True),
@@ -108,6 +115,49 @@ class GoFishApi(remote.Service):
             return game.to_form("Game over, {} is the winner".format(game.winner))
         return game.to_form('Please make guess')
 
+    @endpoints.method(request_message=USER_GAMES_REQUEST,
+                      response_message=AllUserGames,
+                      path='user/{username}',
+                      name='get_user_games',
+                      http_method='GET')
+    def get_user_games(self, request):
+        """Returns all games for a given user"""
+        user = check_user_exists(request.username)
+        players = Player.query(Player.user == user.key)
+        # print "Game key is {}".format(players.key.parent())
+        if players.count() >= 1:
+            return AllUserGames(games=[player.to_form() for player in players])
+        else:
+            raise endpoints.NotFoundException('No games found for user {}'.format(user.name))
+
+    @endpoints.method(request_message=CANCEL_GAME_REQUEST,
+                      response_message=StringMessage,
+                      path='game/{urlsafe_game_key}/cancel',
+                      name='cancel_game',
+                      http_method='POST')
+    def cancel_game(self, request):
+        game = get_by_urlsafe(request.urlsafe_game_key, Game)
+
+        # make sure user selected true
+        if not request.cancel:
+            return StringMessage(message="Must select true to be deleted")
+
+        # check to see if game is already over
+        if game.game_over:
+            return StringMessage(message="Sorry, Game cannot be deleted. Game is already over.")
+
+        if game and request.cancel:
+
+            # delete players associated with game
+            players = Player.query(ancestor=game.key)
+            for player in players:
+                player.key.delete()
+
+            # delete game key
+            game.key.delete()
+
+            return StringMessage(message="Game and players deleted")
+
 
     @endpoints.method(request_message=GET_GAME_REQUEST,
                       response_message=GameForm,
@@ -166,7 +216,7 @@ class GoFishApi(remote.Service):
                       response_message=StringMessage,
                       path='game/{urlsafe_game_key}',
                       name='make_move',
-                      http_method='PUT')
+                      http_method='GET')
     def make_move(self, request):
         """Player Makes Guess. Returns results"""
         game = get_by_urlsafe(request.urlsafe_game_key, Game)
@@ -185,67 +235,34 @@ class GoFishApi(remote.Service):
 
         message = game.make_guess(game,player.name,guess)
 
+        # update cache_scoreboard
+        taskqueue.add(url='/tasks/cache_scoreboard')
+
         return StringMessage(message=message)
 
 
-    # @endpoints.method(response_message=ScoreForms,
-    #                   path='scores',
-    #                   name='get_scores',
-    #                   http_method='GET')
-    # def get_scores(self, request):
-    #     """Return all scores"""
-    #     return ScoreForms(items=[score.to_form() for score in Score.query()])
-
-    # @endpoints.method(request_message=USER_REQUEST,
-    #                   response_message=ScoreForms,
-    #                   path='scores/user/{user_name}',
-    #                   name='get_user_scores',
-    #                   http_method='GET')
-    # def get_user_scores(self, request):
-    #     """Returns all of an individual User's scores"""
-    #     user = check_user_exists(request.user_name)
-    #     if not user:
-    #         raise endpoints.NotFoundException(
-    #                 'A User with that name does not exist!')
-
-
-        # return ScoreForms(items=[score.to_form() for score in scores])
-
     @endpoints.method(response_message=ScoreBoard,
                       path='games/scoreboard',
-                      name='get_scores',
+                      name='get_user_rankings',
                       http_method='GET')
-    def get_scores(self, request):
+    def get_user_rankings(self, request):
         """Get the cached ScoreBoard"""
-        users = User.query()
-        return ScoreBoard(scores=memcache.get(MEMCACHE_SCOREBOARD) or '')
+        users = User.query().order(User.losses)
+        return ScoreBoard(scores=[memcache.get(str(user.name)) for user in users])
+
 
     @staticmethod
     def _cache_scoreboard():
         """Populates memcache with the average moves remaining of Games"""
-        user = User.query().get()
+        users = User.query()
         games = Game.query()
         players = Player.query()
 
-        # user.games = players.filter(Player.name == user.name).count()
-        user.wins = games.filter(Game.winner == user.name).count()
-        user.loses = games.filter(Game.loser == user.name).count()
-
-        user.score = "{} {}-{}".format(user.name, user.wins, user.loses)
-        memcache.set(MEMCACHE_SCOREBOARD, str(user.score))
-        user.put()
-
-
-
-
-        # games = Game.query(Game.game_over == False).fetch()
-        # if games:
-        #     count = len(games)
-        #     total_attempts_remaining = sum([game.attempts_remaining
-        #                                 for game in games])
-        #     average = float(total_attempts_remaining)/count
-        #     memcache.set(MEMCACHE_MOVES_REMAINING,
-        #                  'The average moves remaining is {:.2f}'.format(average))
-
+        for user in users:
+            user.wins = games.filter(Game.winner == user.name).count()
+            user.losses = games.filter(Game.loser == user.name).count()
+            score = "{} {}-{}".format(user.name, user.wins, user.losses)
+            memcache.set(str(user.name), str(score))
+            user.put()
 
 api = endpoints.api_server([GoFishApi])

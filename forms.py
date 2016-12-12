@@ -19,6 +19,15 @@ class AllGames(messages.Message):
     """Returns all games"""
     games = messages.MessageField(GameForm, 1, repeated=True)
 
+class UserGameForm(messages.Message):
+    """UserGameForm for a user's game"""
+    game_url = messages.StringField(1, required=True)
+    opponent = messages.StringField(2, required=True)
+
+class AllUserGames(messages.Message):
+    """Return the key for all games for a given user"""
+    games = messages.MessageField(UserGameForm, 1, repeated=True)
+
 class GameScoreForm(messages.Message):
     """ScoreForm for a game"""
     game_url = messages.StringField(1, required=True)
@@ -48,4 +57,8 @@ class ScoreForm(messages.Message):
 
 class ScoreBoard(messages.Message):
     """ScoreBoard form"""
-    scores = messages.StringField(1, required=False)
+    scores = messages.StringField(1, required=False, repeated=True)
+
+class CancelGame(messages.Message):
+    """CancelGame Response Form"""
+    canceled = messages.StringField(1, required=True)

@@ -2,7 +2,7 @@ from datetime import datetime
 
 from google.appengine.ext import ndb
 
-from forms.forms import GameForm
+from forms import GameForm
 from models.deck import Deck
 from models.player import Player
 
@@ -29,10 +29,14 @@ class Game(ndb.Model):
 
         player1 = Player(parent=game_key,
                          user=user1.key,
+                         opponent=user2.name,
+                         game_url=game.key.urlsafe(),
                          name=user1.name)
 
         player2 = Player(parent=game_key,
                          user=user2.key,
+                         opponent=user1.name,
+                         game_url=game.key.urlsafe(),
                          name=user2.name)
 
         # create deck
@@ -50,9 +54,11 @@ class Game(ndb.Model):
         player2.put()
 
         if player1.check_game_over(matches):
+            print "player1 matches met"
             game.end_game(player1, player2)
 
         if player2.check_game_over(matches):
+            print "player2 matches met"
             game.end_game(player2, player1)
 
         # add player names to the game
@@ -70,6 +76,7 @@ class Game(ndb.Model):
         """Checks players turn and processes players guess"""
         from utils import get_player_by_game
 
+        # check to make sure it is the players turns
         if name.title() != game.turn:
             return "Sorry, it is not your turn. {} please make a move".format(game.turn)
 
@@ -87,7 +94,7 @@ class Game(ndb.Model):
             pl1_values = [x['rank'] for x in player1.hand]
             pl2_values = [x['rank'] for x in player2.hand]
 
-            # make sure player has guess in their hand
+            # make sure player has their guess in their own hand
             if guess not in pl1_values:
                 return "Sorry, you do not have a {} in your own hand. Please guess again.".format(guess)
 
@@ -131,7 +138,7 @@ class Game(ndb.Model):
                 player1.hand.append(card)
                 player1.put()
 
-                # check from matches
+                # check from matches and if game is over
                 player1.check_pairs()
 
                 # change game turn
@@ -168,6 +175,10 @@ class Game(ndb.Model):
         return form
 
 
+    def cancel_game(self, user):
+        pass
+
+
     def end_game(self, winner, loser):
         """Ends the game - if won is True, the player won. - if won is False,
         the player lost."""
@@ -176,46 +187,3 @@ class Game(ndb.Model):
         self.winner = winner.name
         self.loser = loser.name
         self.put()
-
-    # def to_score(self):
-    #     from utils import get_player_by_game
-    #
-    #     player1 = get_player_by_game(self.urlsafe_game_key, self.player_names[0])
-    #     player2 = get_player_by_game(self.urlsafe_game_key, self.player_names[1])
-    #
-    #     score_form = GameScoreForm()
-    #     score_form.game_url = self.urlsafe_game_key
-    #     score_form.player1 = player1.name
-    #     score_form.player1_matches = player1.num_matches
-    #     score_form.player2 = player2.name
-    #     score_form.player2_matches = player2.num_matches
-    #     score_form.turn = self.turn
-    #     score_form.winner = self.winner
-    #     score_form.game_over = self.game_over
-    #
-    #     return score_form
-
-
-        # return "Game over, {} is the winner".format(winner.name)
-        # Add the game to the score 'board'
-        # score = Score(player1=winner.key, date=datetime.now(), won=won, score=player.score, game=self.key)
-        # score.put()
-
-
-# class GameScore(ndb.Model):
-#     """Score object"""
-#     game = ndb.KeyProperty(required=True, kind='Game')
-#     player1 = ndb.KeyProperty(required=True, kind='Player')
-#     # player1_matches = ndb.IntegerProperty(required=True, default=0)
-#     player2 = ndb.KeyProperty(required=True, kind='Player')
-#     # player2_matches = ndb.IntegerProperty(required=True, default=0)
-#     winner = ndb.StringProperty(required=False)
-#     date = ndb.DateTimeProperty(required=True, default=datetime.now())
-#     game_over = ndb.BooleanProperty(required=True)
-
-
-    # def to_form(self,game):
-    #     return GameScoreForm(game_url=game.urlsafe_game_key,
-    #                          started_on=
-    #                          self.user.get().name, won=self.won,
-    #                      date=str(self.date), game=self.game)

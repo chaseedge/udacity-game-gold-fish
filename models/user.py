@@ -1,5 +1,5 @@
 from google.appengine.ext import ndb
-from forms.forms import ScoreForm
+from forms import ScoreForm
 
 class User(ndb.Model):
     """User profile"""
@@ -8,8 +8,6 @@ class User(ndb.Model):
     wins = ndb.IntegerProperty(default=0)
     losses = ndb.IntegerProperty(default=0)
     games = ndb.IntegerProperty(default=0)
-    score = ndb.StringProperty(required=False)
-
 
     def to_form(self):
         """Returns a GameForm representation of the Game"""
