@@ -31,6 +31,11 @@ Uses memcache to update User's scores.
 
 Game has a bias towards whoever goes first.
 
+##Scoring
+The game is over when the first player runs out of cards or reaches the target
+number of matches.
+The scoreboard shows users rankings and is sorted by wins.
+
 ##ToDo List:
 - Implement tie feature
 - Change scoreboard to a win ratio (currently number of wins behind 1st)
