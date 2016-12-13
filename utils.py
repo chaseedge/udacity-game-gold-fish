@@ -68,7 +68,3 @@ def get_player_by_game(name, game):
             '{} is not in this game'.format(name))
     else:
         return player
-
-
-def check_game_exists(player1, player2):
-    """Checks to see if the two players already have a game"""

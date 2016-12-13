@@ -1,5 +1,4 @@
 from google.appengine.ext import ndb
-from forms import ScoreForm
 
 
 class User(ndb.Model):

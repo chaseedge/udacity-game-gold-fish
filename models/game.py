@@ -3,11 +3,48 @@ from datetime import datetime
 from google.appengine.ext import ndb
 
 from forms import GameForm
-from models.deck import Deck
 from models.player import Player
 
 import json
 import random
+
+suits = {
+    0: "Spades",
+    1: "Clubs",
+    2: "Hearts",
+    3: "Diamonds"
+}
+faces = {
+    11: "Jack",
+    12: "Queen",
+    13: "King",
+    14: "Ace"
+}
+
+
+class Deck(object):
+
+    def __init__(self):
+        self.deck = []
+
+    def create_deck(self):
+        for s in xrange(4):
+            for r in xrange(2, 15):
+                if r > 10:
+                    r = faces[r]
+                card = {
+                    'suit': suits[s],
+                    'rank': str(r)
+                }
+                self.deck.append(card)
+
+    def deal_hand(self, cards_to_deal):
+        hand = []
+        for i in xrange(cards_to_deal):
+            card = random.choice(self.deck)
+            self.deck.remove(card)
+            hand.append(card)
+        return hand
 
 
 class Game(ndb.Model):
@@ -76,10 +113,18 @@ class Game(ndb.Model):
         """Checks players turn and processes players guess"""
         from utils import get_player_by_game
 
+        # Build dict to return
+        move = {
+            "match": False,
+            "game_over": False,
+            "message": ""
+        }
+
         # check to make sure it is the players turns
         if name.title() != game.turn:
-            return "Sorry, it is not your turn. {} please make a move".format(
+            move["message"] = "Sorry, it is not your turn. {} please make a move".format(
                 game.turn)
+            return move
 
         else:
             # set player1 and player2
@@ -97,18 +142,20 @@ class Game(ndb.Model):
 
             # make sure player has their guess in their own hand
             if guess not in pl1_values:
-                return "Sorry, you do not have a {} in your own hand. Please guess again.".format(
+                move["message"] = "Sorry, you do not have a {} in your own hand. Please guess again.".format(
                     guess)
+                return move
+
             else:
-                print "trying to add card to player history {}".format(guess)
                 player1.history.append(guess)
             # check to see if guess is in player2 hand
             if guess in pl2_values:
+                move["match"] = True
+                move["message"] = "Match, please go again."
 
                 # find card in players hand
                 pl1_index = pl1_values.index(guess)
                 pl1_card = player1.hand[pl1_index]
-
                 pl2_index = pl2_values.index(guess)
                 pl2_card = player2.hand[pl2_index]
 
@@ -127,13 +174,19 @@ class Game(ndb.Model):
 
                 if player1.check_game_over(game.matches_to_win):
                     game.end_game(player1, player2)
-                    return "Game over, {} is the winner".format(player1.name)
+                    move["game_over"] = True
+                    move["message"] = "Game over, {} is the winner".format(
+                        player1.name)
+                    return move
 
                 if player2.check_game_over(game.matches_to_win):
                     game.end_game(player2, player1)
-                    return "Game over, {} is the winner".format(player2.name)
+                    move["game_over"] = True
+                    move["message"] = "Game over, {} is the winner".format(
+                        player2.name)
+                    return move
 
-                return "Match, please go again."
+                return move
 
             else:
 
@@ -149,8 +202,10 @@ class Game(ndb.Model):
                 # change game turn
                 game.turn = player2.name
                 game.put()
-                return "No match, Go fish. You drew {}. Your hand is {}".format(
+
+                move["message"] = "No match, Go fish. You drew {}".format(
                     card, player1.hand)
+                return move
 
     def to_form(self, message):
         """Returns a GameForm representation of the Game"""

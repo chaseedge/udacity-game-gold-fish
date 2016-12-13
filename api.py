@@ -10,7 +10,8 @@ from google.appengine.api import memcache, taskqueue
 from google.appengine.ext import ndb
 from protorpc import remote, messages, message_types
 
-from forms import StringMessage, StringRepeatedMessage, GameForm, AllGames, AllUserGames, ScoreBoard, PlayerHandForm
+from forms import StringMessage, StringRepeatedMessage, GameForm, \
+    AllGamesForm, AllUserGamesForm, PlayerHandForm, MoveForm
 from models.game import Game
 from models.player import Player
 from models.user import User
@@ -27,6 +28,9 @@ USER_GAMES_REQUEST = endpoints.ResourceContainer(
 
 GET_GAME_REQUEST = endpoints.ResourceContainer(
     urlsafe_game_key=messages.StringField(1))
+
+GET_ALL_GAMES_REQUEST = endpoints.ResourceContainer(
+    active_only=messages.BooleanField(1, required=False))
 
 CANCEL_GAME_REQUEST = endpoints.ResourceContainer(
     urlsafe_game_key=messages.StringField(1),
@@ -106,6 +110,10 @@ class GoFishApi(remote.Service):
         player1 = check_user_exists(request.player1)
         player2 = check_user_exists(request.player2)
 
+        # check to see if two unique players
+        if player1.name == player2.name:
+            raise endpoints.ConflictException('Two unique users needed')
+
         # set defaults
         matches = request.matches_to_win
         if not matches:
@@ -138,8 +146,28 @@ class GoFishApi(remote.Service):
 
         return game.to_form('Please make guess')
 
+    @endpoints.method(request_message=GET_GAME_REQUEST,
+                      response_message=GameForm,
+                      path='game/{urlsafe_game_key}',
+                      name='get_game',
+                      http_method='GET')
+    def get_game(self, request):
+        """Return the current game state."""
+        game = get_by_urlsafe(request.urlsafe_game_key, Game)
+
+        if game.game_over:
+            return game.to_form(
+                "Game over, {} is the winner".format(
+                    game.winner))
+
+        if game:
+            return game.to_form('Your move {}'.format(game.turn))
+
+        else:
+            raise endpoints.NotFoundException('Game not found!')
+
     @endpoints.method(request_message=USER_GAMES_REQUEST,
-                      response_message=AllUserGames,
+                      response_message=AllUserGamesForm,
                       path='user/{username}',
                       name='get_user_games',
                       http_method='GET')
@@ -150,10 +178,29 @@ class GoFishApi(remote.Service):
 
         # make sure player has games
         if players.count() >= 1:
-            return AllUserGames(games=[player.to_form() for player in players])
+            return AllUserGamesForm(
+                games=[player.to_form() for player in players])
         else:
             raise endpoints.NotFoundException(
                 'No games found for user {}'.format(user.name))
+
+    @endpoints.method(request_message=GET_ALL_GAMES_REQUEST,
+                      response_message=AllGamesForm,
+                      path='games',
+                      name='get_all_games',
+                      http_method='GET')
+    def get_all_games(self, request):
+        """Returns all games"""
+
+        if request.active_only:
+            games = Game.query(Game.game_over == False)
+        else:
+            games = Game.query()
+
+        if games.count() >= 1:
+            return AllGamesForm(games=[game.to_form("n/a") for game in games])
+        else:
+            raise endpoints.NotFoundException('No games found')
 
     @endpoints.method(request_message=CANCEL_GAME_REQUEST,
                       response_message=StringMessage,
@@ -184,39 +231,6 @@ class GoFishApi(remote.Service):
 
             return StringMessage(message="Game and players deleted")
 
-    @endpoints.method(request_message=GET_GAME_REQUEST,
-                      response_message=GameForm,
-                      path='game/{urlsafe_game_key}',
-                      name='get_game',
-                      http_method='GET')
-    def get_game(self, request):
-        """Return the current game state."""
-        game = get_by_urlsafe(request.urlsafe_game_key, Game)
-
-        if game.game_over:
-            return game.to_form(
-                "Game over, {} is the winner".format(
-                    game.winner))
-
-        if game:
-            return game.to_form('Your move {}'.format(game.turn))
-
-        else:
-            raise endpoints.NotFoundException('Game not found!')
-
-    @endpoints.method(response_message=AllGames,
-                      path='games',
-                      name='get_all_games',
-                      http_method='GET')
-    def get_all_games(self, request):
-        """Returns all games"""
-        games = Game.query()
-
-        if games.count() >= 1:
-            return AllGames(games=[game.to_form("n/a") for game in games])
-        else:
-            raise endpoints.NotFoundException('No games found')
-
     @endpoints.method(request_message=HAND_REQUEST,
                       response_message=PlayerHandForm,
                       path='game/{urlsafe_game_key}/{username}/hand',
@@ -227,7 +241,7 @@ class GoFishApi(remote.Service):
         game = get_by_urlsafe(request.urlsafe_game_key, Game)
 
         if game.game_over:
-            return StringMessage(
+            return PlayerHandForm(
                 message='Game over, {} is the winner'.format(
                     game.winner))
 
@@ -240,16 +254,13 @@ class GoFishApi(remote.Service):
             raise endpoints.NotFoundException('Player not found!')
 
     @endpoints.method(request_message=MAKE_MOVE_REQUEST,
-                      response_message=StringMessage,
+                      response_message=MoveForm,
                       path='game/{urlsafe_game_key}/{username}/move',
                       name='make_move',
                       http_method='PUT')
     def make_move(self, request):
         """Player Makes Guess. Returns results"""
         game = get_by_urlsafe(request.urlsafe_game_key, Game)
-
-        if game.game_over:
-            return StringMessage(message='Game already over')
 
         player = get_player_by_game(request.username, game)
         if not player:
@@ -261,15 +272,23 @@ class GoFishApi(remote.Service):
         if guess[-1] == "s":
             guess = guess[:-1]
 
-        message = game.make_guess(game, player.name, guess)
+        move = game.make_guess(game, player.name, guess)
+
+        if game.game_over:
+            return MoveForm(message='Game already over',
+                            game_over=True)
 
         # update cache_scoreboard
         taskqueue.add(url='/tasks/cache_scoreboard')
 
-        return StringMessage(message=message)
+        return MoveForm(message=move["message"],
+                        match=move["match"],
+                        hand=str(player.hand),
+                        matches=str(player.matches),
+                        game_over=move["game_over"])
 
     @endpoints.method(request_message=GAME_HISTORY_REQUEST,
-                      response_message=StringMessage,
+                      response_message=StringRepeatedMessage,
                       path='game/{urlsafe_game_key}/{username}/history',
                       name='get_game_history',
                       http_method='GET')
@@ -280,28 +299,37 @@ class GoFishApi(remote.Service):
         player = get_player_by_game(username, game)
 
         if player.history:
-            return StringMessage(player.history)
+            return StringRepeatedMessage(messages=player.history)
         else:
             raise endpoints.NotFoundException(
                 'The player does not have any moves logged')
 
-    @endpoints.method(response_message=ScoreBoard,
+    @endpoints.method(response_message=StringRepeatedMessage,
                       path='games/scoreboard',
                       name='get_user_rankings',
                       http_method='GET')
     def get_user_rankings(self, request):
         """Get the cached ScoreBoard"""
         users = User.query().order(User.games_behind)
+        top = users.get()
 
         if users.count() == 0:
             raise endpoints.NotFoundException('No users found')
 
-        return ScoreBoard(scores=[memcache.get(
-            str(user.name)) for user in users])
+        # check to see if games have been played
+        if top.wins == 0:
+
+            # build default message
+            return StringRepeatedMessage(messages=["{} 0-0".format(user.name) for user in users])
+        else:
+
+            # get scores from memcache
+            return StringRepeatedMessage(messages=[memcache.get(str(user.name)) for user in users])
+
 
     @staticmethod
     def _cache_scoreboard():
-        """Populates memcache with the scoreboard based on games behind first"""
+        """Populates memcache with the scoreboard"""
         games = Game.query()
         players = Player.query()
 
