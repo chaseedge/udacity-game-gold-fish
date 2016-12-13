@@ -40,13 +40,19 @@ class GameScoreForm(messages.Message):
     winner = messages.StringField(8, required=False)
     game_over = messages.BooleanField(9, required=True)
 
+class PlayerHandForm(messages.Message):
+    """PlayerHandForm returns hand and matches"""
+    message = messages.StringField(1, required=False)
+    hand = messages.StringField(2, required=False)
+    matches = messages.StringField(3, required=False)
+
 class StringMessage(messages.Message):
     """StringMessage-- outbound (single) string message"""
     message = messages.StringField(1, required=True)
 
-class AllUsersForm(messages.Message):
-    """AllUsersForm returns list of all users"""
-    users = messages.StringField(1, repeated=True)
+class StringRepeatedMessage(messages.Message):
+    """StringMessage-- outbound (multiple) string messages"""
+    messages = messages.StringField(1, repeated=True)
 
 class ScoreForm(messages.Message):
     """ScoreForm each entry"""
@@ -58,7 +64,3 @@ class ScoreForm(messages.Message):
 class ScoreBoard(messages.Message):
     """ScoreBoard form"""
     scores = messages.StringField(1, required=False, repeated=True)
-
-class CancelGame(messages.Message):
-    """CancelGame Response Form"""
-    canceled = messages.StringField(1, required=True)

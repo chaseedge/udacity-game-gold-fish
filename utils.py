@@ -62,14 +62,10 @@ def get_player_by_game(name, game):
     player = Player.query(ancestor=game.key).filter(Player.name == name.title()).get()
     if not player:
         raise endpoints.NotFoundException(
-            '{} does not exist!'.format(name))
+            '{} is not in this game'.format(name))
     else:
         return player
 
 
 def check_game_exists(player1, player2):
     """Checks to see if the two players already have a game"""
-    game = Game.query(ndb.AND(Game.player_names == player1,
-                              Game.player_names == player2,
-                              Game.game_over == False)).get()
-    return game

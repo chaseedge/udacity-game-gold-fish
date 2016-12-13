@@ -5,10 +5,12 @@ cronjobs."""
 import logging
 
 import webapp2
+from google.appengine.ext import ndb
 from google.appengine.api import mail, app_identity
 from api import GoFishApi
 
 from models.user import User
+from models.game import Game
 
 
 class SendReminderEmail(webapp2.RequestHandler):
@@ -18,14 +20,19 @@ class SendReminderEmail(webapp2.RequestHandler):
         app_id = app_identity.get_application_id()
         users = User.query(User.email != None)
         for user in users:
-            subject = 'This is a reminder!'
-            body = 'Hello {}, try out Guess A Number!'.format(user.name)
-            # This will send test emails, the arguments to send_mail are:
-            # from, to, subject, body
-            mail.send_mail('noreply@{}.appspotmail.com'.format(app_id),
-                           user.email,
-                           subject,
-                           body)
+
+            # retrieve games of the player that are not over
+            game = Game.query(ndb.AND(Game.game_over == False, Game.player_names.IN([user.name])))
+            if game:
+                print "Reminder - Go Fish Game"
+                subject = 'This is a reminder that you have an active game!'
+                body = 'Hello {}, you have an active game going!'.format(user.name)
+                # This will send test emails, the arguments to send_mail are:
+                # from, to, subject, body
+                mail.send_mail('noreply@{}.appspotmail.com'.format(app_id),
+                               user.email,
+                               subject,
+                               body)
 
 
 class UpdateScoreboard(webapp2.RequestHandler):

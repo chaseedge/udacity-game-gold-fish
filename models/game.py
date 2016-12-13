@@ -53,12 +53,11 @@ class Game(ndb.Model):
         player2.check_pairs()
         player2.put()
 
+        # check to see if players have ran out of cards or hit target matches
         if player1.check_game_over(matches):
-            print "player1 matches met"
             game.end_game(player1, player2)
 
-        if player2.check_game_over(matches):
-            print "player2 matches met"
+        elif player2.check_game_over(matches):
             game.end_game(player2, player1)
 
         # add player names to the game
@@ -97,7 +96,9 @@ class Game(ndb.Model):
             # make sure player has their guess in their own hand
             if guess not in pl1_values:
                 return "Sorry, you do not have a {} in your own hand. Please guess again.".format(guess)
-
+            else:
+                print "trying to add card to player history {}".format(guess)
+                player1.history.append(guess)
             # check to see if guess is in player2 hand
             if guess in pl2_values:
 
@@ -108,8 +109,9 @@ class Game(ndb.Model):
                 pl2_index = pl2_values.index(guess)
                 pl2_card = player2.hand[pl2_index]
 
-                # add match to player1
+                # add match to player1 matches
                 player1.matches.append(pl1_card)
+                player1.matches.append(pl2_card)
 
                 # remove cards from both players hands
                 player1.hand.remove(pl1_card)
@@ -173,10 +175,6 @@ class Game(ndb.Model):
 
         form.message = message
         return form
-
-
-    def cancel_game(self, user):
-        pass
 
 
     def end_game(self, winner, loser):

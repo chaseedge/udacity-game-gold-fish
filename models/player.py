@@ -8,30 +8,46 @@ class Player(ndb.Model):
     opponent = ndb.StringProperty(required=True)
     game_url = ndb.StringProperty(required=True)
     hand = ndb.JsonProperty()
+    history = ndb.StringProperty(repeated=True)
     num_matches = ndb.IntegerProperty(required=True, default=0)
     matches = ndb.JsonProperty(default=[])
 
     def check_pairs(self):
-        temp_list = []
-        message = "Following cards were paired for {}: ".format(self.name)
+        """Check for matches in hand"""
+
+        # build index of matches
+        matches_index = []
         for index, card in enumerate(self.hand):
+
+            # List of all values in hand
             value_list = [x['rank'] for x in self.hand]
 
-            if card['rank'] in temp_list:
-                self.matches.append(card)
-                self.hand.remove(card)
-                temp_list.remove(card['rank'])
-                message += " and {}".format(card['suit'])
-                self.num_matches += 1
+            # list of rest of cards values in hand
+            temp_list = value_list[index+1:]
 
-            if card['rank'] in value_list[index+1:]:
-                self.matches.append(card)
-                temp_list.append(card['rank'])
-                message += "{} of {}".format(card['rank'], card['suit'])
-                self.hand.remove(card)
+            # check to see if the matched card is already in index
+            if index not in matches_index:
+
+                try:
+                    match = temp_list.index(card['rank']) + index + 1
+                    matches_index.append(index)
+                    matches_index.append(match)
+
+                except:
+                    pass
+
+        # sort high to low so matches can be removed and not change index
+        matches_index.sort(reverse=True)
+
+        for x in matches_index:
+            card = self.hand[x]
+
+            # remove card from hand and add it to matches
+            self.matches.append(card)
+            self.num_matches += 1
+            self.hand.remove(card)
 
         self.put()
-
 
 
     def check_game_over(self, matches):
