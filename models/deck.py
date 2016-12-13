@@ -13,13 +13,15 @@ faces = {
     14: "Ace"
 }
 
+
 class Deck(object):
+
     def __init__(self):
         self.deck = []
 
     def create_deck(self):
         for s in xrange(4):
-            for r in xrange(2,15):
+            for r in xrange(2, 15):
                 if r > 10:
                     r = faces[r]
                 card = {
@@ -35,6 +37,3 @@ class Deck(object):
             self.deck.remove(card)
             hand.append(card)
         return hand
-
-
-

@@ -1,6 +1,7 @@
 from google.appengine.ext import ndb
 from forms import ScoreForm
 
+
 class User(ndb.Model):
     """User profile"""
     name = ndb.StringProperty(required=True)

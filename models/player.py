@@ -1,6 +1,7 @@
 from google.appengine.ext import ndb
 from forms import UserGameForm
 
+
 class Player(ndb.Model):
     """Creates players for the game"""
     user = ndb.KeyProperty(required=True, kind='User')
@@ -23,7 +24,7 @@ class Player(ndb.Model):
             value_list = [x['rank'] for x in self.hand]
 
             # list of rest of cards values in hand
-            temp_list = value_list[index+1:]
+            temp_list = value_list[index + 1:]
 
             # check to see if the matched card is already in index
             if index not in matches_index:
@@ -49,10 +50,9 @@ class Player(ndb.Model):
 
         self.put()
 
-
     def check_game_over(self, matches):
         """Checks if the player is out of cards or has number of matches"""
-        if len(self.hand) == 0 or len(self.matches)/2 >= matches:
+        if len(self.hand) == 0 or len(self.matches) / 2 >= matches:
             return True
         else:
             return False

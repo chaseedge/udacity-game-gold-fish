@@ -17,39 +17,40 @@ from models.user import User
 from utils import get_by_urlsafe, check_user_exists, get_player_by_game
 
 NEW_GAME_REQUEST = endpoints.ResourceContainer(
-    player1 = messages.StringField(1, required=True),
-    player2 = messages.StringField(2, required=True),
-    cards_dealt = messages.IntegerField(3, required=False),
-    matches_to_win = messages.IntegerField(4, required=False))
+    player1=messages.StringField(1, required=True),
+    player2=messages.StringField(2, required=True),
+    cards_dealt=messages.IntegerField(3, required=False),
+    matches_to_win=messages.IntegerField(4, required=False))
 
 USER_GAMES_REQUEST = endpoints.ResourceContainer(
-    username = messages.StringField(1, required=True))
+    username=messages.StringField(1, required=True))
 
 GET_GAME_REQUEST = endpoints.ResourceContainer(
-    urlsafe_game_key = messages.StringField(1))
+    urlsafe_game_key=messages.StringField(1))
 
 CANCEL_GAME_REQUEST = endpoints.ResourceContainer(
-    urlsafe_game_key = messages.StringField(1),
-    cancel = messages.BooleanField(2))
+    urlsafe_game_key=messages.StringField(1),
+    cancel=messages.BooleanField(2))
 
 HAND_REQUEST = endpoints.ResourceContainer(
-    urlsafe_game_key = messages.StringField(1, required=True),
-    username = messages.StringField(2, required=True))
+    urlsafe_game_key=messages.StringField(1, required=True),
+    username=messages.StringField(2, required=True))
 
 USER_REQUEST = endpoints.ResourceContainer(
-    username = messages.StringField(1, required=True),
-    email = messages.StringField(2))
+    username=messages.StringField(1, required=True),
+    email=messages.StringField(2))
 
 MAKE_MOVE_REQUEST = endpoints.ResourceContainer(
-    urlsafe_game_key = messages.StringField(1, required=True),
-    username = messages.StringField(2, required=True),
-    guess = messages.StringField(3, required=True))
+    urlsafe_game_key=messages.StringField(1, required=True),
+    username=messages.StringField(2, required=True),
+    guess=messages.StringField(3, required=True))
 
 GAME_HISTORY_REQUEST = endpoints.ResourceContainer(
-    username = messages.StringField(1, required=True),
-    urlsafe_game_key = messages.StringField(2, required=True))
+    username=messages.StringField(1, required=True),
+    urlsafe_game_key=messages.StringField(2, required=True))
 
 MEMCACHE_SCOREBOARD = 'SCOREBOARD'
+
 
 @endpoints.api(name='go_fish', version='v1')
 class GoFishApi(remote.Service):
@@ -77,7 +78,7 @@ class GoFishApi(remote.Service):
         taskqueue.add(url='/tasks/cache_scoreboard')
 
         return StringMessage(message='User {} created!'.format(
-                                request.username))
+            request.username))
 
     @endpoints.method(response_message=StringRepeatedMessage,
                       path='user/all',
@@ -125,14 +126,15 @@ class GoFishApi(remote.Service):
         else:
             game = Game.new_game(player1, player2, matches, cards)
 
-
         # Use a task queue to update the average attempts remaining.
         # This operation is not needed to complete the creation of a new game
         # so it is performed out of sequence.
         taskqueue.add(url='/tasks/cache_scoreboard')
 
         if game.game_over:
-            return game.to_form("Game over, {} is the winner".format(game.winner))
+            return game.to_form(
+                "Game over, {} is the winner".format(
+                    game.winner))
 
         return game.to_form('Please make guess')
 
@@ -150,7 +152,8 @@ class GoFishApi(remote.Service):
         if players.count() >= 1:
             return AllUserGames(games=[player.to_form() for player in players])
         else:
-            raise endpoints.NotFoundException('No games found for user {}'.format(user.name))
+            raise endpoints.NotFoundException(
+                'No games found for user {}'.format(user.name))
 
     @endpoints.method(request_message=CANCEL_GAME_REQUEST,
                       response_message=StringMessage,
@@ -166,7 +169,8 @@ class GoFishApi(remote.Service):
 
         # check to see if game is already over
         if game.game_over:
-            return StringMessage(message="Sorry, Game cannot be deleted. Game is already over.")
+            return StringMessage(
+                message="Sorry, Game cannot be deleted. Game is already over.")
 
         if game and request.cancel:
 
@@ -180,7 +184,6 @@ class GoFishApi(remote.Service):
 
             return StringMessage(message="Game and players deleted")
 
-
     @endpoints.method(request_message=GET_GAME_REQUEST,
                       response_message=GameForm,
                       path='game/{urlsafe_game_key}',
@@ -191,7 +194,9 @@ class GoFishApi(remote.Service):
         game = get_by_urlsafe(request.urlsafe_game_key, Game)
 
         if game.game_over:
-            return game.to_form("Game over, {} is the winner".format(game.winner))
+            return game.to_form(
+                "Game over, {} is the winner".format(
+                    game.winner))
 
         if game:
             return game.to_form('Your move {}'.format(game.turn))
@@ -212,7 +217,6 @@ class GoFishApi(remote.Service):
         else:
             raise endpoints.NotFoundException('No games found')
 
-
     @endpoints.method(request_message=HAND_REQUEST,
                       response_message=PlayerHandForm,
                       path='game/{urlsafe_game_key}/{username}/hand',
@@ -223,7 +227,9 @@ class GoFishApi(remote.Service):
         game = get_by_urlsafe(request.urlsafe_game_key, Game)
 
         if game.game_over:
-            return StringMessage(message='Game over, {} is the winner'.format(game.winner))
+            return StringMessage(
+                message='Game over, {} is the winner'.format(
+                    game.winner))
 
         player = get_player_by_game(request.username, game)
 
@@ -232,7 +238,6 @@ class GoFishApi(remote.Service):
                                   matches=str(player.matches))
         else:
             raise endpoints.NotFoundException('Player not found!')
-
 
     @endpoints.method(request_message=MAKE_MOVE_REQUEST,
                       response_message=StringMessage,
@@ -256,7 +261,7 @@ class GoFishApi(remote.Service):
         if guess[-1] == "s":
             guess = guess[:-1]
 
-        message = game.make_guess(game,player.name,guess)
+        message = game.make_guess(game, player.name, guess)
 
         # update cache_scoreboard
         taskqueue.add(url='/tasks/cache_scoreboard')
@@ -277,9 +282,8 @@ class GoFishApi(remote.Service):
         if player.history:
             return StringMessage(player.history)
         else:
-            raise endpoints.NotFoundException('The player does not have any moves logged')
-
-
+            raise endpoints.NotFoundException(
+                'The player does not have any moves logged')
 
     @endpoints.method(response_message=ScoreBoard,
                       path='games/scoreboard',
@@ -292,8 +296,8 @@ class GoFishApi(remote.Service):
         if users.count() == 0:
             raise endpoints.NotFoundException('No users found')
 
-        return ScoreBoard(scores=[memcache.get(str(user.name)) for user in users])
-
+        return ScoreBoard(scores=[memcache.get(
+            str(user.name)) for user in users])
 
     @staticmethod
     def _cache_scoreboard():

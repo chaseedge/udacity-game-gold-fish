@@ -8,6 +8,7 @@ from models.user import User
 
 import endpoints
 
+
 def get_by_urlsafe(urlsafe, model):
     """Returns an ndb.Model entity that the urlsafe key points to. Checks
         that the type of entity returned is of the correct kind. Raises an
@@ -25,7 +26,7 @@ def get_by_urlsafe(urlsafe, model):
         key = ndb.Key(urlsafe=urlsafe)
     except TypeError:
         raise endpoints.BadRequestException('Invalid Key')
-    except Exception, e:
+    except Exception as e:
         if e.__class__.__name__ == 'ProtocolBufferDecodeError':
             raise endpoints.BadRequestException('Invalid Key')
         else:
@@ -58,8 +59,10 @@ def get_player_by_game(name, game):
         raise endpoints.NotFoundException(
             '{} does not exist!'.format(name))
 
-    #check to see if Player is in this game
-    player = Player.query(ancestor=game.key).filter(Player.name == name.title()).get()
+    # check to see if Player is in this game
+    player = Player.query(
+        ancestor=game.key).filter(
+        Player.name == name.title()).get()
     if not player:
         raise endpoints.NotFoundException(
             '{} is not in this game'.format(name))

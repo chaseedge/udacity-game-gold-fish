@@ -9,6 +9,7 @@ from models.player import Player
 import json
 import random
 
+
 class Game(ndb.Model):
     """Game object"""
     player_names = ndb.StringProperty(repeated=True)
@@ -77,7 +78,8 @@ class Game(ndb.Model):
 
         # check to make sure it is the players turns
         if name.title() != game.turn:
-            return "Sorry, it is not your turn. {} please make a move".format(game.turn)
+            return "Sorry, it is not your turn. {} please make a move".format(
+                game.turn)
 
         else:
             # set player1 and player2
@@ -95,7 +97,8 @@ class Game(ndb.Model):
 
             # make sure player has their guess in their own hand
             if guess not in pl1_values:
-                return "Sorry, you do not have a {} in your own hand. Please guess again.".format(guess)
+                return "Sorry, you do not have a {} in your own hand. Please guess again.".format(
+                    guess)
             else:
                 print "trying to add card to player history {}".format(guess)
                 player1.history.append(guess)
@@ -146,8 +149,8 @@ class Game(ndb.Model):
                 # change game turn
                 game.turn = player2.name
                 game.put()
-                return "No match, Go fish. You drew {}. Your hand is {}".format(card, player1.hand)
-
+                return "No match, Go fish. You drew {}. Your hand is {}".format(
+                    card, player1.hand)
 
     def to_form(self, message):
         """Returns a GameForm representation of the Game"""
@@ -175,7 +178,6 @@ class Game(ndb.Model):
 
         form.message = message
         return form
-
 
     def end_game(self, winner, loser):
         """Ends the game - if won is True, the player won. - if won is False,
