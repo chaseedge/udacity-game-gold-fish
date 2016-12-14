@@ -1,0 +1,23 @@
+I took the Guess Number Game and changed it into a game of Gold Fish.
+This was pretty much a total rework of the Guess Number Game. I used a couple
+of the forms and utility functions from the old game, but for the most part, I
+created an entirely new game.
+
+The game is just like the traditional card game. One of the challenges I faced
+was how to handle the deck of cards and the players hands. I could have kept
+everything in the Game Model, but decided to use another model named Player.
+I did this for multiple reasons:
+    - Thought it would make the code more readable
+    - Instead of having a player1, player1_hand, player1_matches, player2, etc.,
+    I thought it would be better to have the player names and who's turn it is
+    saved in the Game Entity and just look up the Player when needed.
+
+Since this is more than just a guessing game, I had to add an endpoint to
+handle the card game aspect with get_player_hand.
+
+To improve on the game, I could add a feature to handle ties. Currently it is
+whoever hits the number of matches first or runs out of cards. The biases is
+towards Player1 because their matches are checked first.
+I could also change how the scoreboard is handled. Currently, users are ranked
+based on number of wins and disregards how many losses the user has. It could
+be changed to look at a win ratio and number of games played. 

@@ -40,31 +40,54 @@ def get_by_urlsafe(urlsafe, model):
     return entity
 
 
-def check_user_exists(name):
-    """Checks to see if User exits and returns user"""
-    user = User.query(User.name == name.title()).get()
+def check_user_exists(username):
+    """Returns an User (ndb.Model) entity that the username points to. Raises an
+        error if an entity is not found.
+    Args:
+        username: Username string
+    Returns:
+        The entity that the username string points to.
+    Raises:
+        NotFoundException if no User entity is found"""
+    user = User.query(User.name == username.title()).get()
 
     if not user:
         raise endpoints.NotFoundException(
-            'User {} does not exist!'.format(name))
+            'User {} does not exist!'.format(username))
     else:
         return user
 
 
-def get_player_by_game(name, game):
-    """Search for player given name and game"""
+def get_player_by_game(username, game):
+    """Returns an Player (ndb.Model) entity for a given username and game.
+        First verify username and game entity are valid, raises error if not.
+        Then returns the Player entity for the given user in the game.
+        Raises an error if a Player is not found.
+    Args:
+        username: Username string
+        game: Game ndb.Model entity
+    Returns:
+        The Player entity for a username in the given game.
+    Raises:
+        NotFoundException if no User entity is found from the given username.
+        NotFoundException Game entity is not valid.
+        NotFoundException if no Player entity is found."""
 
     # check to make sure User exists
-    if not check_user_exists(name):
+    if not check_user_exists(username):
         raise endpoints.NotFoundException(
-            '{} does not exist!'.format(name))
+            '{} does not exist!'.format(username))
+
+    # check to see if game is a valid Game entity
+    if not isinstance(game, Game):
+        raise endpoints.NotFoundException('Game not found')
 
     # check to see if Player is in this game
     player = Player.query(
         ancestor=game.key).filter(
-        Player.name == name.title()).get()
+        Player.name == username.title()).get()
     if not player:
         raise endpoints.NotFoundException(
-            '{} is not in this game'.format(name))
+            '{} is not in this game'.format(username))
     else:
         return player

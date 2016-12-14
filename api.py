@@ -6,16 +6,32 @@ primarily with communication to/from the API's users."""
 
 import endpoints
 import json
-from google.appengine.api import memcache, taskqueue
 from google.appengine.ext import ndb
-from protorpc import remote, messages, message_types
+from google.appengine.api import (
+    memcache,
+    taskqueue)
+from protorpc import (
+    remote,
+    messages,
+    message_types)
 
-from forms import StringMessage, StringRepeatedMessage, GameForm, \
-    AllGamesForm, AllUserGamesForm, PlayerHandForm, MoveForm
-from models.game import Game
+from forms import (
+    StringMessage,
+    StringRepeatedMessage,
+    GameForm,
+    AllGamesForm,
+    AllUserGamesForm,
+    PlayerHandForm,
+    MoveForm)
+from models.game import (
+    Game,
+    faces)
 from models.player import Player
 from models.user import User
-from utils import get_by_urlsafe, check_user_exists, get_player_by_game
+from utils import (
+    get_by_urlsafe,
+    check_user_exists,
+    get_player_by_game)
 
 NEW_GAME_REQUEST = endpoints.ResourceContainer(
     player1=messages.StringField(1, required=True),
@@ -24,7 +40,8 @@ NEW_GAME_REQUEST = endpoints.ResourceContainer(
     matches_to_win=messages.IntegerField(4, required=False))
 
 USER_GAMES_REQUEST = endpoints.ResourceContainer(
-    username=messages.StringField(1, required=True))
+    username=messages.StringField(1, required=True),
+    active_only=messages.BooleanField(2, required=True))
 
 GET_GAME_REQUEST = endpoints.ResourceContainer(
     urlsafe_game_key=messages.StringField(1))
@@ -50,8 +67,8 @@ MAKE_MOVE_REQUEST = endpoints.ResourceContainer(
     guess=messages.StringField(3, required=True))
 
 GAME_HISTORY_REQUEST = endpoints.ResourceContainer(
-    username=messages.StringField(1, required=True),
-    urlsafe_game_key=messages.StringField(2, required=True))
+    urlsafe_game_key=messages.StringField(1, required=True),
+    username=messages.StringField(2, required=True))
 
 MEMCACHE_SCOREBOARD = 'SCOREBOARD'
 
@@ -167,22 +184,28 @@ class GoFishApi(remote.Service):
             raise endpoints.NotFoundException('Game not found!')
 
     @endpoints.method(request_message=USER_GAMES_REQUEST,
-                      response_message=AllUserGamesForm,
+                      response_message=AllGamesForm,
                       path='user/{username}',
                       name='get_user_games',
                       http_method='GET')
     def get_user_games(self, request):
         """Returns all games for a given user"""
-        user = check_user_exists(request.username)
-        players = Player.query(Player.user == user.key)
 
-        # make sure player has games
-        if players.count() >= 1:
-            return AllUserGamesForm(
-                games=[player.to_form() for player in players])
+        # check to see if username is valid
+        user = check_user_exists(request.username)
+
+        games = Game.query(ndb.AND(Game.player_names == user.name))
+        error_msg = 'No games found for user {}'.format(user.name)
+
+        # get active_only games by filtering game_over = false
+        if request.active_only:
+            games = games.filter(Game.game_over != request.active_only)
+            error_msg = 'No active games found for user {}'.format(user.name)
+
+        if games.count() > 0:
+            return AllGamesForm(games=[game.to_form("n/a") for game in games])
         else:
-            raise endpoints.NotFoundException(
-                'No games found for user {}'.format(user.name))
+            raise endpoints.NotFoundException(error_msg)
 
     @endpoints.method(request_message=GET_ALL_GAMES_REQUEST,
                       response_message=AllGamesForm,
@@ -206,8 +229,11 @@ class GoFishApi(remote.Service):
                       response_message=StringMessage,
                       path='game/{urlsafe_game_key}/cancel',
                       name='cancel_game',
-                      http_method='POST')
+                      http_method='DELETE')
     def cancel_game(self, request):
+        """Deletes game and players in the game"""
+
+        # make sure game is valid and return game
         game = get_by_urlsafe(request.urlsafe_game_key, Game)
 
         # make sure user selected true
@@ -216,8 +242,8 @@ class GoFishApi(remote.Service):
 
         # check to see if game is already over
         if game.game_over:
-            return StringMessage(
-                message="Sorry, Game cannot be deleted. Game is already over.")
+            raise endpoints.ForbiddenException(
+                'Illegal action: Game is already over.')
 
         if game and request.cancel:
 
@@ -229,7 +255,7 @@ class GoFishApi(remote.Service):
             # delete game key
             game.key.delete()
 
-            return StringMessage(message="Game and players deleted")
+            return StringMessage(message="Game deleted")
 
     @endpoints.method(request_message=HAND_REQUEST,
                       response_message=PlayerHandForm,
@@ -241,9 +267,8 @@ class GoFishApi(remote.Service):
         game = get_by_urlsafe(request.urlsafe_game_key, Game)
 
         if game.game_over:
-            return PlayerHandForm(
-                message='Game over, {} is the winner'.format(
-                    game.winner))
+            raise endpoints.ForbiddenException(
+                'Illegal action: Game is already over.')
 
         player = get_player_by_game(request.username, game)
 
@@ -260,24 +285,49 @@ class GoFishApi(remote.Service):
                       http_method='PUT')
     def make_move(self, request):
         """Player Makes Guess. Returns results"""
+        guess = request.guess.title()
+
+        # check and return if valid game
         game = get_by_urlsafe(request.urlsafe_game_key, Game)
 
+        if game.game_over:
+            raise endpoints.ForbiddenException(
+                'Illegal action: Game is already over.')
+
+        # check to see if user is valid and is in the game
         player = get_player_by_game(request.username, game)
         if not player:
             raise endpoints.NotFoundException('Player is not in this game')
 
-        guess = request.guess.title()
+        # make sure guess is valid. Check numbers and then faces
+        try:
 
-        # see check if user entered Jacks instead of Jack
-        if guess[-1] == "s":
-            guess = guess[:-1]
+            if int(guess) > 1 and int(guess) < 11:
+                move = game.make_guess(game, player.name, guess)
 
-        move = game.make_guess(game, player.name, guess)
+            else:
+                raise endpoints.BadRequestException('Invalid Guess')
 
-        if game.game_over:
-            return MoveForm(message='Game already over',
-                            game_over=True)
+        except:
 
+            # build list of face cards to check guess against
+            face_cards = []
+            for key, value in faces.iteritems():
+                face_cards.append(value)
+
+            # see check if user entered Jacks instead of Jack
+            if guess[-1] == "s":
+                guess = guess[:-1]
+
+            # Since guess is not a number, check if a valid face card
+            if guess in face_cards:
+                move = game.make_guess(game, player.name, guess)
+            else:
+                raise endpoints.BadRequestException('Invalid Guess')
+
+        # update player for any changes to hand
+        player = get_player_by_game(request.username, game)
+        
         # update cache_scoreboard
         taskqueue.add(url='/tasks/cache_scoreboard')
 

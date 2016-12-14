@@ -37,11 +37,6 @@ The game is over when the first player runs out of cards or reaches the target
 number of matches.
 The scoreboard shows users rankings and is sorted by wins.
 
-##ToDo List:
-- Implement tie feature
-- Change scoreboard to a win ratio (currently number of wins behind 1st)
-
-
 ##Files Included:
  - api.py: Contains endpoints and game playing logic.
  - app.yaml: App configuration.
@@ -97,11 +92,12 @@ The scoreboard shows users rankings and is sorted by wins.
  - **get_user_games**
     - Path: 'user/{username}'
     - Method: GET
-    - Parameters: username
+    - Parameters: username, active_only
     - Returns: Returns AllUserGames that includes opponent name and
       urlsafe_game_key.
-    - Description: Returns all games for a given username.
-      Raises NotFoundException if username is not vaild or user has no games.
+    - Description: Returns all games for a given username with a flag for
+      active games only.
+      Raises NotFoundException if username is not valid or user has no games.
 
  - **get_all_game**
     - Path: 'games'
@@ -113,7 +109,7 @@ The scoreboard shows users rankings and is sorted by wins.
 
  - **cancel_game**
     - Path: 'game/{urlsafe_game_key}/cancel'
-    - Method: POST
+    - Method: DELETE
     - Parameters: urlsafe_game_key, cancel (boolean)
     - Returns: StringMessage confirmation of game and associated players deleted.
     - Description: Deletes a game and associated players if game is not over,
@@ -140,6 +136,7 @@ The scoreboard shows users rankings and is sorted by wins.
       If this causes a game to end, a corresponding message will be returned.
       Raises a NotFoundException if invalid urlsafe_game_key or if given player
       is not found in game.
+      Raises a BadRequestException if guess is not a valid card value.
 
  - **get_game_history**
     - Path: 'game/{urlsafe_game_key}/{username}/history'
@@ -165,44 +162,6 @@ The scoreboard shows users rankings and is sorted by wins.
  - **Player**
     - Stores a player for each user in a game with player's hand and matches. Associated with User model via KeyProperty and ancestor is the game.
 
-
-##Outbound Forms Included:
- - **GameForm**
-    - Representation of a Game's state (urlsafe_key,
-    game_over flag, player1, player1_hand, player1_matches, player2, player2_hand, player2_matches, turn, winner, started_on, message).
- - **AllGamesForm**
-    - Multiple GameForm container
- - **UserGameForm**
-    - Brief representation of all users games. Includes urlsafe_game_key and opponent
- - **AllUserGamesForm**
-    - Multiple UserGameForm container
- - **MoveForm**
-    - Representation of the result from a player's guess (message, match flag, hand, matches, game_over flag)
- - **PlayerHandForm**
-    - Representation of a players hand (message, hand, matches)
- - **ScoreForms**
-    - Multiple ScoreForm container.
- - **StringMessage**
-    - General purpose String container.
- - **StringRepeatedMessage**
-    - General purpose repeated String container
-
-##Inbound Forms Included:
- - **NEW_GAME_REQUEST**
-    - For new game (player1, player2, cards_dealt, matches_to_win)
- - **USER_GAMES_REQUEST**
-    - To get all games for a given user (username)
- - **GET_GAME_REQUEST**
-    - To get game by url (urlsafe_game_key)
- - **GET_ALL_GAMES_REQUEST**
-    - To get all games, optional active only (active_only)
- - **CANCEL_GAME_REQUEST**
-    - To cancel game, takes url and confirmation boolean (urlsafe_game_key, cancel)
- - **HAND_REQUEST**
-    - To get players hand for a game (urlsafe_game_key, username)
- - **USER_REQUEST**
-    - To create new user (username, email)
- - **MAKE_MOVE_REQUEST**
-    - To make a move for a given game (urlsafe_game_key, username, guess)
- - **GAME_HISTORY_REQUEST**
-    - To get a players guesses for a given game (username, urlsafe_game_key)
+##Cronjobs##
+ - **SendReminderEmail**
+    - Checks for users with a registered email address and sends a reminder email if the user has games active.

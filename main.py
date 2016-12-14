@@ -19,23 +19,27 @@ class SendReminderEmail(webapp2.RequestHandler):
         """Send a reminder email to each User with an email about games.
         Called every hour using a cron job"""
         app_id = app_identity.get_application_id()
-        users = User.query(User.email is not None)
-        for user in users:
+        users = User.query(User.email != None)
 
-            # retrieve games of the player that are not over
-            game = Game.query(ndb.AND(Game.game_over == False,
-                                      Game.player_names.IN([user.name])))
-            if game:
-                print "Reminder - Go Fish Game"
-                subject = 'This is a reminder that you have an active game!'
-                body = 'Hello {}, you have an active game going!'.format(
-                    user.name)
-                # This will send test emails, the arguments to send_mail are:
-                # from, to, subject, body
-                mail.send_mail('noreply@{}.appspotmail.com'.format(app_id),
-                               user.email,
-                               subject,
-                               body)
+        # check to see if any users have emails
+        if users.count() >= 1:
+            for user in users:
+
+                # retrieve games of the player that are not over
+                game = Game.query(ndb.AND(Game.game_over == False,
+                                          Game.player_names.IN([user.name])))
+
+                if game.count() > 0:
+                    subject = 'This is a reminder that you have an active game!'
+                    body = 'Hello {}, you have an active game going!'.format(
+                        user.name)
+                    
+                    # This will send test emails, the arguments to send_mail are:
+                    # from, to, subject, body
+                    mail.send_mail('noreply@{}.appspotmail.com'.format(app_id),
+                                   user.email,
+                                   subject,
+                                   body)
 
 
 class UpdateScoreboard(webapp2.RequestHandler):

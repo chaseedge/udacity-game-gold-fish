@@ -53,7 +53,7 @@ class Player(ndb.Model):
 
     def check_game_over(self, matches):
         """Checks if the player is out of cards or has number of matches"""
-        if len(self.hand) == 0 or len(self.matches) / 2 >= matches:
+        if len(self.hand) == 0 or self.num_matches >= matches:
             return True
         else:
             return False

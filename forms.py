@@ -36,7 +36,7 @@ class AllUserGamesForm(messages.Message):
 class MoveForm(messages.Message):
     """MoveForm response for a players guess"""
     message = messages.StringField(1, required=True)
-    match = messages.BooleanField(2, required=True)
+    match = messages.BooleanField(2, required=False)
     hand = messages.StringField(3, required=False)
     matches = messages.StringField(4, required=False)
     game_over = messages.BooleanField(5, required=True)
