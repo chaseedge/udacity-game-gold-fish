@@ -15,6 +15,7 @@ class GameForm(messages.Message):
     turn = messages.StringField(10, required=False)
     winner = messages.StringField(11, required=False)
     started_on = message_types.DateTimeField(12, required=True)
+    matches_to_win = messages.IntegerField(13, required=True)
 
 
 class AllGamesForm(messages.Message):

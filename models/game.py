@@ -225,6 +225,7 @@ class Game(ndb.Model):
         form.player2_hand = str(player2.hand)
         form.player2_matches = player2.num_matches
         form.game_over = self.game_over
+        form.matches_to_win = self.matches_to_win
 
         if not self.game_over:
             form.turn = self.turn
