@@ -296,6 +296,7 @@ class GoFishApi(remote.Service):
 
         # check to see if user is valid and is in the game
         player = get_player_by_game(request.username, game)
+
         if not player:
             raise endpoints.NotFoundException('Player is not in this game')
 
@@ -327,14 +328,14 @@ class GoFishApi(remote.Service):
 
         # update player for any changes to hand
         player = get_player_by_game(request.username, game)
-        
+
         # update cache_scoreboard
         taskqueue.add(url='/tasks/cache_scoreboard')
 
         return MoveForm(message=move["message"],
                         match=move["match"],
                         hand=str(player.hand),
-                        matches=str(player.matches),
+                        num_matches=player.num_matches,
                         game_over=move["game_over"])
 
     @endpoints.method(request_message=GAME_HISTORY_REQUEST,

@@ -20,4 +20,4 @@ whoever hits the number of matches first or runs out of cards. The biases is
 towards Player1 because their matches are checked first.
 I could also change how the scoreboard is handled. Currently, users are ranked
 based on number of wins and disregards how many losses the user has. It could
-be changed to look at a win ratio and number of games played. 
+be changed to look at a win ratio and number of games played.

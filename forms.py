@@ -38,7 +38,7 @@ class MoveForm(messages.Message):
     message = messages.StringField(1, required=True)
     match = messages.BooleanField(2, required=False)
     hand = messages.StringField(3, required=False)
-    matches = messages.StringField(4, required=False)
+    num_matches = messages.IntegerField(4, required=False)
     game_over = messages.BooleanField(5, required=True)
 
 
