@@ -6,6 +6,12 @@
 *.exe
 *.o
 *.so
+*.pyc
+
+# Folders #
+###########
+*/.idea
+*/.vscode
 
 # Packages #
 ############
