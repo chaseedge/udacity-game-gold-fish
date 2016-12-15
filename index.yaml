@@ -19,3 +19,34 @@ indexes:
   properties:
   - name: player_names
   - name: game_over
+
+- kind: Move
+  ancestor: yes
+  properties:
+  - name: time
+
+- kind: Move
+  ancestor: yes
+  properties:
+  - name: time
+    direction: desc
+
+- kind: User
+  properties:
+  - name: win_ratio
+    direction: desc
+  - name: games
+
+- kind: User
+  properties:
+  - name: win_ratio
+    direction: desc
+  - name: games
+    direction: desc
+
+- kind: User
+  properties:
+  - name: wins
+    direction: desc
+  - name: games
+    direction: desc

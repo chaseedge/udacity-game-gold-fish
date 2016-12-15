@@ -40,7 +40,7 @@ class Player(ndb.Model):
         # sort high to low so matches can be removed and not change index
         matches_index.sort(reverse=True)
 
-        self.num_matches += len(matches_index)/2
+        self.num_matches += len(matches_index) / 2
 
         for x in matches_index:
             card = self.hand[x]

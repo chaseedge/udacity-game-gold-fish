@@ -23,6 +23,20 @@ class AllGamesForm(messages.Message):
     games = messages.MessageField(GameForm, 1, repeated=True)
 
 
+class UserScoreForm(messages.Message):
+    """UserScoreForm for results of all completed games"""
+    player = messages.StringField(1, required=True)
+    games_played = messages.IntegerField(2, required=True)
+    win_ratio = messages.FloatField(3, required=True)
+    wins = messages.IntegerField(4, required=True)
+    losses = messages.IntegerField(5, required=True)
+
+
+class AllUserScores(messages.Message):
+    """Repeated UserScoreForm"""
+    scores = messages.MessageField(UserScoreForm, 1, repeated=True)
+
+
 class UserGameForm(messages.Message):
     """UserGameForm for a user's game"""
     game_url = messages.StringField(1, required=True)
@@ -58,3 +72,17 @@ class StringMessage(messages.Message):
 class StringRepeatedMessage(messages.Message):
     """StringMessage-- outbound (multiple) string messages"""
     messages = messages.StringField(1, repeated=True)
+
+
+class GameHistoryForm(messages.Message):
+    """GameHistory Form"""
+    player = messages.StringField(1, required=True)
+    time = message_types.DateTimeField(2, required=True)
+    guess = messages.StringField(3, required=True)
+    match = messages.BooleanField(4, required=True)
+    game_over = messages.BooleanField(5, required=True)
+
+
+class AllGameHistory(messages.Message):
+    """Returns all GameHistoryForm"""
+    history = messages.MessageField(GameHistoryForm, 1, repeated=True)

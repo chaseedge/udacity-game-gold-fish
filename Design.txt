@@ -12,6 +12,10 @@ I did this for multiple reasons:
     I thought it would be better to have the player names and who's turn it is
     saved in the Game Entity and just look up the Player when needed.
 
+Instead of logging each move made in the Game Model, I made a separate Move Model.
+I did this to make Game Model quicker because there is no need to bring in all moves
+in a game each time a Game Model entity was queried. 
+
 Since this is more than just a guessing game, I had to add an endpoint to
 handle the card game aspect with get_player_hand.
 

@@ -22,18 +22,18 @@ class SendReminderEmail(webapp2.RequestHandler):
         users = User.query(User.email != None)
 
         # check to see if any users have emails
-        if users.count() >= 1:
+        if users.count():
             for user in users:
 
                 # retrieve games of the player that are not over
                 game = Game.query(ndb.AND(Game.game_over == False,
                                           Game.player_names.IN([user.name])))
 
-                if game.count() > 0:
+                if game.count():
                     subject = 'This is a reminder that you have an active game!'
                     body = 'Hello {}, you have an active game going!'.format(
                         user.name)
-                    
+
                     # This will send test emails, the arguments to send_mail are:
                     # from, to, subject, body
                     mail.send_mail('noreply@{}.appspotmail.com'.format(app_id),

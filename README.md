@@ -127,7 +127,7 @@ The scoreboard shows users rankings and is sorted by wins.
       invalid urlsafe_game_key or if given player is not found in game.
 
  - **make_move**
-    - Path: 'game/{urlsafe_game_key}/{username}/move'
+    - Path: 'game/{urlsafe_game_key}/player/{username}/move'
     - Method: PUT
     - Parameters: urlsafe_game_key, username, guess
     - Returns: MakeMoveForm with result of guess, status of game, player hand
@@ -139,18 +139,18 @@ The scoreboard shows users rankings and is sorted by wins.
       Raises a BadRequestException if guess is not a valid card value.
 
  - **get_game_history**
-    - Path: 'game/{urlsafe_game_key}/{username}/history'
+    - Path: 'game/{urlsafe_game_key}/history'
     - Method: GET
-    - Parameters: urlsafe_game_key, username
-    - Returns: StringRepeatedMessage of user guesses.
-    - Description: Returns all of a users guesses for a given game. Raises a NotFoundException if invalid urlsafe_game_key or user not in game.
+    - Parameters: urlsafe_game_key
+    - Returns: GameHistoryForm for each guess made in game.
+    - Description: Returns all of a users guesses for a given game. Raises a NotFoundException if invalid urlsafe_game_key or no moves logged for the game.
 
  - **get_user_rankings**
     - Path: 'games/scoreboard'
     - Method: GET
     - Parameters: None
-    - Returns: StringRepeatedMessage of users and their records sorted by wins.
-    - Description: Returns a leader board of all users scores sorted by wins
+    - Returns: UserScoreForm for each users by win ratio first then games played.
+    - Description: Returns a leader board of all users scores sorted by a win ratio calculated by wins divided by games played
 
 ##Models Included:
  - **User**
@@ -162,6 +162,13 @@ The scoreboard shows users rankings and is sorted by wins.
  - **Player**
     - Stores a player for each user in a game with player's hand and matches. Associated with User model via KeyProperty and ancestor is the game.
 
+ - **Move**
+    - Stores each move made in a game
+
 ##Cronjobs##
  - **SendReminderEmail**
     - Checks for users with a registered email address and sends a reminder email if the user has games active.
+
+##Task Queues##
+ - **UpdateScoreboard**
+    - Updates User entities wins, total games, losses, and win ratio for the scoreboard

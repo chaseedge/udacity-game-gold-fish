@@ -4,6 +4,7 @@ from google.appengine.ext import ndb
 
 from forms import GameForm
 from models.player import Player
+from models.move import Move
 
 import json
 import random
@@ -53,6 +54,7 @@ class Game(ndb.Model):
     turn = ndb.StringProperty(required=False, default="")
     started_on = ndb.DateTimeProperty(required=True, default=datetime.now())
     deck = ndb.JsonProperty()
+    history = ndb.JsonProperty(default=[])
     game_over = ndb.BooleanProperty(required=True, default=False)
     matches_to_win = ndb.IntegerProperty(required=True)
     cards_dealt = ndb.IntegerProperty(required=True)
@@ -109,81 +111,81 @@ class Game(ndb.Model):
         return game
 
     @classmethod
-    def make_guess(cls, game, name, guess):
+    def make_guess(cls, game, player, guess):
         """Checks players turn and processes players guess"""
         from utils import get_player_by_game
 
-        # Build dict to return
-        move = {
-            "match": False,
-            "game_over": False,
-            "message": ""
-        }
+        move = Move(
+            parent=game.key,
+            player=player.key,
+            name=player.name,
+            guess=guess,
+            match=False,
+            game_over=False
+        )
 
         # check to make sure it is the players turns
-        if name.title() != game.turn:
-            move["message"] = "Sorry, it is not your turn. {} please make a move".format(
+        if player.name != game.turn:
+            move.message = "Sorry, it is not your turn. {} please make a move".format(
                 game.turn)
             return move
 
         else:
             # set player1 and player2
-            player_index = game.player_names.index(name)
+            player_index = game.player_names.index(player.name)
             if player_index == 0:
-                player1 = get_player_by_game(name, game)
-                player2 = get_player_by_game(game.player_names[1], game)
+                opponent = get_player_by_game(game.player_names[1], game)
             else:
-                player1 = get_player_by_game(name, game)
-                player2 = get_player_by_game(game.player_names[0], game)
+                opponent = get_player_by_game(game.player_names[0], game)
 
-            # create a list of values only
-            pl1_values = [x['rank'] for x in player1.hand]
-            pl2_values = [x['rank'] for x in player2.hand]
+            # create a list of card values only
+            pl_values = [x['rank'] for x in player.hand]
+            opp_values = [x['rank'] for x in opponent.hand]
 
             # make sure player has their guess in their own hand
-            if guess not in pl1_values:
-                move["message"] = "Sorry, you do not have a {} in your own hand. Please guess again.".format(
-                    guess)
+            if guess not in pl_values:
+                move.message = "Sorry, {} does not have a {} in hand. Please guess again.".format(
+                    player.name, guess)
                 return move
 
             else:
-                player1.history.append(guess)
+                player.history.append(guess)
             # check to see if guess is in player2 hand
-            if guess in pl2_values:
-                move["match"] = True
-                move["message"] = "Match, please go again."
+            if guess in opp_values:
+                move.match = True
+                move.message = "Match, please go again."
 
                 # find card in players hand
-                pl1_index = pl1_values.index(guess)
-                pl1_card = player1.hand[pl1_index]
-                pl2_index = pl2_values.index(guess)
-                pl2_card = player2.hand[pl2_index]
+                pl_index = pl_values.index(guess)
+                pl_card = player.hand[pl_index]
+                opp_index = opp_values.index(guess)
+                opp_card = opponent.hand[opp_index]
 
                 # add match to player1 matches
-                player1.matches.append(pl1_card)
-                player1.matches.append(pl2_card)
+                player.matches.append(pl_card)
+                player.matches.append(opp_card)
 
                 # remove cards from both players hands
-                player1.hand.remove(pl1_card)
-                player2.hand.remove(pl2_card)
+                player.hand.remove(pl_card)
+                opponent.hand.remove(opp_card)
 
-                player1.num_matches += 1
+                player.num_matches += 1
 
-                player1.put()
-                player2.put()
+                player.put()
+                opponent.put()
 
-                if player1.check_game_over(game.matches_to_win):
-                    game.end_game(player1, player2)
-                    move["game_over"] = True
-                    move["message"] = "Game over, {} is the winner".format(
-                        player1.name)
+                if player.check_game_over(game.matches_to_win):
+                    game.end_game(player, opponent)
+                    move.game_over = True
+                    move.message = "Game over, {} is the winner".format(
+                        player.name)
                     return move
 
-                if player2.check_game_over(game.matches_to_win):
-                    game.end_game(player2, player1)
-                    move["game_over"] = True
-                    move["message"] = "Game over, {} is the winner".format(
-                        player2.name)
+                if opponent.check_game_over(game.matches_to_win):
+                    game.end_game(opponent, player)
+                    move.game_over = True
+                    move.message = "Game over, {} is the winner".format(
+                        opponent.name)
                     return move
 
                 return move
@@ -193,18 +195,18 @@ class Game(ndb.Model):
                 # add the go fish card to players hand and remove from deck
                 card = random.choice(game.deck)
                 game.deck.remove(card)
-                player1.hand.append(card)
-                player1.put()
+                player.hand.append(card)
+                player.put()
 
                 # check from matches and if game is over
-                player1.check_pairs()
+                player.check_pairs()
 
                 # change game turn
-                game.turn = player2.name
+                game.turn = opponent.name
                 game.put()
 
-                move["message"] = "No match, Go fish. You drew {}".format(
-                    card, player1.hand)
+                move.message = "No match, Go fish. {} drew {}".format(
+                    player.name, card, player.hand)
                 return move
 
     def to_form(self, message):
